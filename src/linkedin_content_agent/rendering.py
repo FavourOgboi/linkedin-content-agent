@@ -22,6 +22,18 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         if review_url
         else f"Review locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
     )
+    originality_lines: list[str] = []
+    if generated_content.originality_audit is not None:
+        originality_lines = [
+            "## Originality Review",
+            f"- Source signal: {generated_content.originality_audit.source_signal}",
+            f"- Source claim: {generated_content.originality_audit.core_claim_from_source}",
+            f"- Transformation: {generated_content.originality_audit.transformation_type}",
+            f"- New insight: {generated_content.originality_audit.new_mechanism_or_insight}",
+            f"- Originality score: {generated_content.originality_audit.originality_score}",
+            f"- Decision: {generated_content.originality_audit.decision}",
+            "",
+        ]
 
     sections = [
         f"# {summary.day} - {summary.post_type}",
@@ -53,6 +65,7 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         *[f"- Passed: {item}" for item in generated_content.primary.self_audit.passed_checks],
         *[f"- Note: {item}" for item in generated_content.primary.self_audit.critic_notes],
         "",
+        *originality_lines,
         *backup_lines,
     ]
     return "\n".join(sections).strip() + "\n"
@@ -69,6 +82,18 @@ def render_email_payload(
         review_url
         or f"Run locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
     )
+    originality_block = []
+    if generated_content.originality_audit is not None:
+        originality_block = [
+            "",
+            "ORIGINALITY REVIEW",
+            f"Source signal: {generated_content.originality_audit.source_signal}",
+            f"Source claim: {generated_content.originality_audit.core_claim_from_source}",
+            f"Transformation: {generated_content.originality_audit.transformation_type}",
+            f"New insight: {generated_content.originality_audit.new_mechanism_or_insight}",
+            f"Originality score: {generated_content.originality_audit.originality_score}",
+            f"Decision: {generated_content.originality_audit.decision}",
+        ]
     backup_block = "\n\n".join(
         [
             "\n".join(
@@ -105,6 +130,7 @@ def render_email_payload(
             "",
             "WHY THIS WORKS",
             generated_content.primary.why_this_works,
+            *originality_block,
             "",
             "BACKUP IDEAS",
             backup_block or "No backup ideas generated.",

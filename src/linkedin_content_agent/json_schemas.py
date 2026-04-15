@@ -11,6 +11,8 @@ POST_TYPE_ENUM = [
     "Thinking / Reflection",
     "Build Story",
 ]
+TRANSFORMATION_TYPE_ENUM = ["reframed", "deepened", "challenged", "applied"]
+ORIGINALITY_DECISION_ENUM = ["approve", "reject"]
 
 
 SOURCE_REFERENCE_SCHEMA = {
@@ -105,5 +107,26 @@ AUDIT_RESULT_SCHEMA = {
         "revision_instructions": {"type": "string"},
     },
     "required": ["passed", "reasons", "revision_instructions"],
+    "additionalProperties": False,
+}
+
+ORIGINALITY_AUDIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "source_signal": {"type": "string"},
+        "core_claim_from_source": {"type": "string"},
+        "transformation_type": {"type": "string", "enum": TRANSFORMATION_TYPE_ENUM},
+        "new_mechanism_or_insight": {"type": "string"},
+        "originality_score": {"type": "number"},
+        "decision": {"type": "string", "enum": ORIGINALITY_DECISION_ENUM},
+    },
+    "required": [
+        "source_signal",
+        "core_claim_from_source",
+        "transformation_type",
+        "new_mechanism_or_insight",
+        "originality_score",
+        "decision",
+    ],
     "additionalProperties": False,
 }

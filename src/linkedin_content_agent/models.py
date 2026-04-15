@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 
 Decision = Literal["approved", "rejected"]
+OriginalityDecision = Literal["approve", "reject"]
+TransformationType = Literal["reframed", "deepened", "challenged", "applied"]
 
 
 @dataclass(slots=True)
@@ -59,6 +61,16 @@ class SelfAudit:
 
 
 @dataclass(slots=True)
+class OriginalityAudit:
+    source_signal: str
+    core_claim_from_source: str
+    transformation_type: TransformationType
+    new_mechanism_or_insight: str
+    originality_score: float
+    decision: OriginalityDecision
+
+
+@dataclass(slots=True)
 class PostPackage:
     day: str
     post_type: str
@@ -85,6 +97,7 @@ class GeneratedContent:
     primary: PostPackage
     backups: list[BackupIdea]
     selected_topic_reason: str
+    originality_audit: OriginalityAudit | None = None
 
 
 @dataclass(slots=True)

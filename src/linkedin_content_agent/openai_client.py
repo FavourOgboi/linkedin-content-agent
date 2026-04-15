@@ -6,8 +6,8 @@ from typing import Any, Protocol
 
 from linkedin_content_agent.config import AppConfig
 from linkedin_content_agent.day_contracts import DayContract
-from linkedin_content_agent.json_schemas import AUDIT_RESULT_SCHEMA, GENERATION_PAYLOAD_SCHEMA, TOPIC_SELECTION_SCHEMA
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, ModelAuditResult, PostPackage, SelfAudit, SourceReference, TopicCandidate, TopicSelection
+from linkedin_content_agent.json_schemas import AUDIT_RESULT_SCHEMA, GENERATION_PAYLOAD_SCHEMA, ORIGINALITY_AUDIT_SCHEMA, TOPIC_SELECTION_SCHEMA
+from linkedin_content_agent.models import BackupIdea, GeneratedContent, ModelAuditResult, OriginalityAudit, PostPackage, SelfAudit, SourceReference, TopicCandidate, TopicSelection
 
 
 CONTENT_SYSTEM_PROMPT = """
@@ -25,6 +25,9 @@ Rules:
 - No emojis
 - No hype language
 - If a beginner or shallow AI could produce it, reject it internally and improve it
+- External signals are inputs, not final framing
+- Do not reuse a source headline framing or restate a source conclusion directly
+- Every accepted draft must add a deeper mechanism, contradiction, or applied system explanation
 """.strip()
 
 
@@ -50,6 +53,16 @@ class ContentModel(Protocol):
         generated_content: GeneratedContent,
         deterministic_issues: list[str],
     ) -> ModelAuditResult:
+        raise NotImplementedError
+
+    def assess_originality(
+        self,
+        *,
+        contract: DayContract,
+        selection: TopicSelection,
+        candidate: TopicCandidate,
+        generated_content: GeneratedContent,
+    ) -> OriginalityAudit:
         raise NotImplementedError
 
 
@@ -174,9 +187,19 @@ class OpenAIContentModel:
             "",
             "Return one primary post package and exactly two backup ideas.",
             "The primary post must use the exact output structure. It must not sound motivational or generic.",
+            "Do not reuse the same headline framing as the source signal.",
+            "Do not restate the source conclusion directly.",
+            "You must add a deeper mechanism, contradiction, or applied system explanation that makes the idea feel owned rather than aggregated.",
         ]
         if revision_feedback:
-            prompt_parts.extend(["", "Revision feedback from the critic:", revision_feedback])
+            prompt_parts.extend(
+                [
+                    "",
+                    "This is a forced reframing pass.",
+                    "Revision feedback from the critic:",
+                    revision_feedback,
+                ]
+            )
 
         payload = self._structured_call(
             schema_name="generation_payload",
@@ -203,6 +226,40 @@ class OpenAIContentModel:
             backups=backups,
             selected_topic_reason=payload["selected_topic_reason"],
         )
+
+    def assess_originality(
+        self,
+        *,
+        contract: DayContract,
+        selection: TopicSelection,
+        candidate: TopicCandidate,
+        generated_content: GeneratedContent,
+    ) -> OriginalityAudit:
+        prompt = "\n".join(
+            [
+                f"Assess originality for this {contract.day} / {contract.post_type} LinkedIn draft.",
+                "External signals are valid inputs, but the draft must not reuse the same headline framing or restate the same conclusion directly.",
+                "Single-source topics are allowed only if the draft introduces a deeper mechanism, contradiction, or applied system lens.",
+                "Approve only if the originality score is at least 7.",
+                "",
+                f"Selected topic: {selection.selected_title}",
+                f"Selection reason: {selection.selected_reason}",
+                "",
+                "Candidate and source evidence:",
+                json.dumps(asdict(candidate), indent=2),
+                "",
+                "Generated draft:",
+                json.dumps(asdict(generated_content), indent=2),
+            ]
+        )
+        payload = self._structured_call(
+            schema_name="originality_audit",
+            schema=ORIGINALITY_AUDIT_SCHEMA,
+            system_prompt=CONTENT_SYSTEM_PROMPT,
+            user_prompt=prompt,
+            reasoning_effort=self.config.audit_reasoning,
+        )
+        return OriginalityAudit(**payload)
 
     def audit_content(
         self,

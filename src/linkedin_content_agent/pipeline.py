@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from linkedin_content_agent.config import AppConfig
 from linkedin_content_agent.day_contracts import resolve_day_contract, resolve_topic_choice
 from linkedin_content_agent.emailer import SMTPEmailSender
-from linkedin_content_agent.models import DeliveryResult, ReviewRecord, RunOptions, TopicCandidate, TopicSelection
+from linkedin_content_agent.models import DeliveryResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicSelection
 from linkedin_content_agent.models import AgentRunResult, RunContext
 from linkedin_content_agent.openai_client import ContentModel, OpenAIContentModel
 from linkedin_content_agent.rendering import render_email_payload
@@ -16,7 +16,7 @@ from linkedin_content_agent.sources.base import safe_fetch
 from linkedin_content_agent.sources.catalog import build_default_sources
 from linkedin_content_agent.storage import LocalHybridStorage, StorageBackend
 from linkedin_content_agent.utils import slugify, utc_now
-from linkedin_content_agent.validation import validate_generated_content
+from linkedin_content_agent.validation import fallback_originality_audit, validate_generated_content, validate_originality
 
 
 class ContentAgent:
@@ -77,16 +77,20 @@ class ContentAgent:
         if options.topic_override and all(candidate.title != selected_topic for candidate in candidates):
             candidates = [self._manual_candidate(selected_topic, signals)] + candidates
 
+        generated_content, accepted_selection = self._generate_with_originality_guard(contract, effective_selection, candidates)
+        selected_topic = accepted_selection.selected_title
+        review_url = self._review_url(context.run_id)
         prompt_payload = {
             "run_id": context.run_id,
             "contract": asdict(contract),
-            "selection": asdict(effective_selection),
+            "initial_selection": asdict(effective_selection),
+            "final_selection": asdict(accepted_selection),
+            "originality_audit": (
+                asdict(generated_content.originality_audit) if generated_content.originality_audit is not None else None
+            ),
             "candidates": [asdict(candidate) for candidate in candidates[:5]],
             "signal_count": len(signals),
         }
-
-        generated_content = self._generate_with_critic(contract, effective_selection, candidates)
-        review_url = self._review_url(context.run_id)
         delivery_result = self._deliver(context, generated_content, selected_topic, review_url, options.send_email)
         summary, artifacts = self.storage.save_run(
             context=context,
@@ -140,8 +144,132 @@ class ContentAgent:
             supporting_signals=supporting,
         )
 
-    def _generate_with_critic(self, contract: object, selection: TopicSelection, candidates: list[TopicCandidate]):
-        revision_feedback: str | None = None
+    def _candidate_queue(self, selection: TopicSelection, candidates: list[TopicCandidate]) -> list[TopicCandidate]:
+        ordered_titles = [selection.selected_title, *selection.backup_titles]
+        queued: list[TopicCandidate] = []
+        seen_titles: set[str] = set()
+
+        for title in ordered_titles:
+            for candidate in candidates:
+                if candidate.title == title and candidate.title not in seen_titles:
+                    queued.append(candidate)
+                    seen_titles.add(candidate.title)
+                    break
+
+        for candidate in candidates:
+            if candidate.title in seen_titles:
+                continue
+            queued.append(candidate)
+            seen_titles.add(candidate.title)
+
+        return queued
+
+    def _selection_for_candidate(
+        self,
+        selection: TopicSelection,
+        candidate: TopicCandidate,
+        *,
+        prior_rejections: list[str],
+    ) -> TopicSelection:
+        if candidate.title == selection.selected_title and not prior_rejections:
+            return selection
+
+        reason = (
+            f"Fallback after originality rejection of: {', '.join(prior_rejections)}."
+            if prior_rejections
+            else selection.selected_reason
+        )
+        backups = [title for title in selection.backup_titles if title != candidate.title]
+        return TopicSelection(
+            selected_title=candidate.title,
+            selected_reason=reason,
+            backup_titles=backups,
+            caution_notes=selection.caution_notes,
+        )
+
+    def _reference_candidates(self, candidate: TopicCandidate, candidates: list[TopicCandidate]) -> list[TopicCandidate]:
+        ordered = [candidate]
+        ordered.extend(item for item in candidates if item.title != candidate.title)
+        return ordered[:5]
+
+    def _assess_originality(
+        self,
+        contract: object,
+        selection: TopicSelection,
+        candidate: TopicCandidate,
+        generated_content,
+    ) -> OriginalityAudit:
+        try:
+            return self.model.assess_originality(
+                contract=contract,
+                selection=selection,
+                candidate=candidate,
+                generated_content=generated_content,
+            )
+        except Exception:
+            return fallback_originality_audit(candidate, generated_content)
+
+    def _originality_feedback(
+        self,
+        audit: OriginalityAudit,
+        issues: list[str],
+    ) -> str:
+        lines = [
+            "The first draft failed the originality guard.",
+            *issues,
+            "Do not reuse the source headline framing.",
+            "Do not restate the source conclusion directly.",
+            f"Required transformation type: {audit.transformation_type}.",
+            f"Required new mechanism or insight: {audit.new_mechanism_or_insight}",
+            "Rewrite the hook and core claim so the post feels owned rather than aggregated.",
+        ]
+        return "\n".join(lines)
+
+    def _generate_with_originality_guard(
+        self,
+        contract: object,
+        selection: TopicSelection,
+        candidates: list[TopicCandidate],
+    ):
+        queued_candidates = self._candidate_queue(selection, candidates)
+        rejected_titles: list[str] = []
+        last_issues: list[str] = []
+
+        for candidate in queued_candidates:
+            current_selection = self._selection_for_candidate(selection, candidate, prior_rejections=rejected_titles)
+            originality_feedback: str | None = None
+
+            for _ in range(2):
+                generated_content = self._generate_with_critic(
+                    contract,
+                    current_selection,
+                    self._reference_candidates(candidate, candidates),
+                    revision_feedback=originality_feedback,
+                )
+                originality_audit = self._assess_originality(contract, current_selection, candidate, generated_content)
+                originality_issues = validate_originality(generated_content, candidate, originality_audit)
+                if not originality_issues:
+                    generated_content.originality_audit = originality_audit
+                    generated_content.primary.self_audit.critic_notes.append(
+                        f"Originality: {originality_audit.transformation_type} ({originality_audit.originality_score}/10)."
+                    )
+                    return generated_content, current_selection
+
+                last_issues = originality_issues
+                originality_feedback = self._originality_feedback(originality_audit, originality_issues)
+
+            rejected_titles.append(candidate.title)
+
+        raise RuntimeError("No candidate passed the originality guard: " + "; ".join(last_issues))
+
+    def _generate_with_critic(
+        self,
+        contract: object,
+        selection: TopicSelection,
+        candidates: list[TopicCandidate],
+        *,
+        revision_feedback: str | None = None,
+    ):
         last_issues: list[str] = []
         for _ in range(3):
             generated_content = self.model.generate_content(
@@ -162,7 +290,8 @@ class ContentAgent:
                 return generated_content
 
             last_issues = deterministic_issues + audit.reasons
-            revision_feedback = "\n".join(last_issues + [audit.revision_instructions])
+            feedback_parts = [revision_feedback, *last_issues, audit.revision_instructions]
+            revision_feedback = "\n".join(part for part in feedback_parts if part)
 
         raise RuntimeError("Content generation failed critic review: " + "; ".join(last_issues))
 

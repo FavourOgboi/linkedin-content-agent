@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 import re
 
 from linkedin_content_agent.day_contracts import DayContract
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, PostPackage
+from linkedin_content_agent.models import BackupIdea, GeneratedContent, OriginalityAudit, PostPackage, TopicCandidate
 
 
 HYPE_PATTERNS = (
@@ -45,7 +46,30 @@ CONCRETE_MARKERS = (
     "tradeoff",
 )
 
+DEEP_MECHANISM_MARKERS = (
+    "because",
+    "how",
+    "why",
+    "due to",
+    "causes",
+    "caused",
+    "break",
+    "breaks",
+    "broke",
+    "system",
+    "workflow",
+    "pipeline",
+    "protocol",
+    "contract",
+    "boundary",
+    "failure mode",
+    "production",
+    "operational",
+    "adherence",
+)
+
 EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]")
+TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
 
 
 def _collect_text(post: PostPackage) -> str:
@@ -64,6 +88,48 @@ def _collect_text(post: PostPackage) -> str:
 
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
+
+
+def _tokenize(text: str) -> set[str]:
+    return set(TOKEN_RE.findall(text.lower()))
+
+
+def _headline_similarity(left: str, right: str) -> float:
+    left_tokens = _tokenize(left)
+    right_tokens = _tokenize(right)
+    token_similarity = 0.0
+    if left_tokens and right_tokens:
+        token_similarity = len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+    string_similarity = SequenceMatcher(None, left.lower(), right.lower()).ratio()
+    return max(token_similarity, string_similarity)
+
+
+def _source_titles(candidate: TopicCandidate) -> list[str]:
+    titles = [reference.title for reference in candidate.supporting_signals if reference.title]
+    return titles or [candidate.title]
+
+
+def fallback_originality_audit(candidate: TopicCandidate, generated_content: GeneratedContent) -> OriginalityAudit:
+    combined = _collect_text(generated_content.primary)
+    source_signal = _source_titles(candidate)[0]
+    similarity = max(_headline_similarity(generated_content.primary.hook, title) for title in _source_titles(candidate))
+    has_mechanism = any(marker in combined for marker in DEEP_MECHANISM_MARKERS)
+    originality_score = 8.0 if has_mechanism and similarity < 0.7 else 4.5 if has_mechanism else 3.0
+    decision = "approve" if originality_score >= 7.0 else "reject"
+    transformation_type = "deepened" if has_mechanism else "reframed"
+    new_insight = (
+        "The draft explains the deeper system mechanism behind the source signal."
+        if has_mechanism
+        else "Add a deeper mechanism, contradiction, or applied system explanation beyond the source framing."
+    )
+    return OriginalityAudit(
+        source_signal=source_signal,
+        core_claim_from_source=candidate.title,
+        transformation_type=transformation_type,
+        new_mechanism_or_insight=new_insight,
+        originality_score=round(originality_score, 2),
+        decision=decision,
+    )
 
 
 def validate_post_package(post: PostPackage, contract: DayContract) -> list[str]:
@@ -132,6 +198,34 @@ def validate_backup_idea(backup: BackupIdea) -> list[str]:
         issues.append("Backup idea contains emoji characters.")
     if _contains_any(combined, HYPE_PATTERNS):
         issues.append("Backup idea contains banned hype language.")
+    return issues
+
+
+def validate_originality(
+    generated_content: GeneratedContent,
+    candidate: TopicCandidate,
+    audit: OriginalityAudit,
+) -> list[str]:
+    issues: list[str] = []
+    combined = _collect_text(generated_content.primary)
+    hook = generated_content.primary.hook
+    claim_text = " ".join([generated_content.primary.hook, *generated_content.primary.core_idea[:2]])
+    source_titles = _source_titles(candidate)
+    hook_similarity = max(_headline_similarity(hook, title) for title in source_titles)
+    claim_similarity = max(_headline_similarity(claim_text, title) for title in source_titles)
+    has_mechanism = any(marker in combined for marker in DEEP_MECHANISM_MARKERS)
+
+    if hook_similarity >= 0.72:
+        issues.append("Hook is too similar to the source headline framing.")
+    if claim_similarity >= 0.5 and not has_mechanism:
+        issues.append("Draft mirrors the source claim without a distinct why/how layer.")
+    if audit.originality_score < 7.0:
+        issues.append("Originality score is below 7.")
+    if audit.decision != "approve":
+        issues.append("Originality audit rejected the draft.")
+    if not audit.new_mechanism_or_insight.strip():
+        issues.append("Originality audit did not provide a new mechanism or insight.")
+
     return issues
 
 
