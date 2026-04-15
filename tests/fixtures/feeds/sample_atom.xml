@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Channel</title>
+  <entry>
+    <id>yt-1</id>
+    <title>Tool calling mistakes in agent workflows</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=abc123" />
+    <published>2026-04-15T06:30:00+00:00</published>
+    <summary>Where the workflow broke and what the surprising fix looked like.</summary>
+  </entry>
+  <entry>
+    <id>yt-2</id>
+    <title>Unexpected result from structured output retries</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=xyz789" />
+    <updated>2026-04-14T10:00:00+00:00</updated>
+    <summary>Lessons from retry loops that looked safe until they hit latency costs.</summary>
+  </entry>
+</feed>

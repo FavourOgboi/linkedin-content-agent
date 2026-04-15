@@ -1,0 +1,34 @@
+{
+  "data": {
+    "children": [
+      {
+        "data": {
+          "id": "abc123",
+          "subreddit": "MachineLearning",
+          "author": "builder_one",
+          "title": "Unexpected tradeoff in agent pipelines",
+          "permalink": "/r/MachineLearning/comments/abc123/unexpected_tradeoff_in_agent_pipelines/",
+          "created_utc": 1776232800,
+          "score": 312,
+          "num_comments": 54,
+          "upvote_ratio": 0.94,
+          "selftext": "A real deployment exposed a workflow tradeoff that prompt tuning could not solve."
+        }
+      },
+      {
+        "data": {
+          "id": "def456",
+          "subreddit": "MachineLearning",
+          "author": "builder_two",
+          "title": "What people get wrong about LLM eval benchmarks",
+          "permalink": "/r/MachineLearning/comments/def456/what_people_get_wrong_about_llm_eval_benchmarks/",
+          "created_utc": 1776146400,
+          "score": 198,
+          "num_comments": 23,
+          "upvote_ratio": 0.91,
+          "selftext": "The benchmark looked clean until a production data edge case broke the assumptions."
+        }
+      }
+    ]
+  }
+}
