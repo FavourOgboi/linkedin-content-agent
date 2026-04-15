@@ -115,3 +115,33 @@ If you want review records, use the local CLI command after a run:
 ```bash
 python -m linkedin_content_agent.cli review --run-id RUN_ID --decision approved --notes "Good hook. Keep this angle."
 ```
+
+## Windows Task Scheduler
+
+If GitHub Actions is blocked by account billing, you can run the agent locally every day with Windows Task Scheduler.
+
+1. Make sure your local `.env` is already filled in.
+2. Run the registration script once:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\register_daily_task.ps1 -Time 08:00
+```
+
+3. Windows will create a task named `LinkedIn Content Agent Daily` that runs the local agent script every day at `08:00` local time.
+4. The runner script writes logs to `data/logs/`.
+
+Useful local scheduler commands:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_daily_agent.ps1
+```
+
+```powershell
+Start-ScheduledTask -TaskName "LinkedIn Content Agent Daily"
+```
+
+```powershell
+Get-ScheduledTask -TaskName "LinkedIn Content Agent Daily"
+```
+
+This scheduler path does not depend on GitHub secrets or GitHub billing. It uses your local `.env` only.

@@ -16,6 +16,8 @@ dist/
 
 data/history/*
 !data/history/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
 data/outputs/*
 !data/outputs/.gitkeep
 data/prompts/*
