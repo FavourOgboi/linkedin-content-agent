@@ -7,7 +7,8 @@ from pathlib import Path
 
 DEFAULT_RSS_FEEDS = (
     "https://hnrss.org/frontpage",
-    "https://www.deeplearning.ai/the-batch/feed/",
+    "https://simonwillison.net/atom/everything/",
+    "https://openai.com/news/rss.xml",
     "https://www.kdnuggets.com/feed",
 )
 
@@ -17,6 +18,12 @@ DEFAULT_REDDIT_SUBREDDITS = (
     "datascience",
     "ChatGPT",
 )
+
+DEPRECATED_RSS_FEED_REPLACEMENTS = {
+    "https://www.deeplearning.ai/the-batch/feed/": (
+        "https://simonwillison.net/atom/everything/",
+    ),
+}
 
 
 def _strip_quotes(value: str) -> str:
@@ -47,6 +54,44 @@ def _split_csv(raw: str | None) -> tuple[str, ...]:
     if not raw:
         return ()
     return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _csv_from_env(name: str) -> tuple[str, ...] | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    return _split_csv(raw)
+
+
+def _unique(values: tuple[str, ...]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        ordered.append(value)
+        seen.add(value)
+    return tuple(ordered)
+
+
+def _normalize_rss_feeds(feeds: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for feed in feeds:
+        replacement = DEPRECATED_RSS_FEED_REPLACEMENTS.get(feed)
+        if replacement is not None:
+            normalized.extend(replacement)
+            continue
+        normalized.append(feed)
+    return _unique(tuple(normalized))
+
+
+def _normalize_subreddits(subreddits: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for subreddit in subreddits:
+        cleaned = subreddit.strip().removeprefix("r/").removeprefix("/r/")
+        if cleaned:
+            normalized.append(cleaned)
+    return _unique(tuple(normalized))
 
 
 def _get_str(name: str, default: str) -> str:
@@ -99,6 +144,9 @@ class AppConfig:
     def from_env(cls) -> "AppConfig":
         load_dotenv_file()
         data_dir = Path(os.getenv("LCA_DATA_DIR", "data"))
+        rss_feeds = _csv_from_env("LCA_RSS_FEEDS")
+        reddit_subreddits = _csv_from_env("LCA_REDDIT_SUBREDDITS")
+        youtube_channel_ids = _csv_from_env("LCA_YOUTUBE_CHANNEL_IDS")
         smtp = SMTPConfig(
             host=os.getenv("LCA_SMTP_HOST"),
             port=int(_get_str("LCA_SMTP_PORT", "465")),
@@ -118,9 +166,11 @@ class AppConfig:
             data_dir=data_dir,
             review_base_url=os.getenv("LCA_REVIEW_BASE_URL"),
             signal_limit_per_source=int(_get_str("LCA_SIGNAL_LIMIT_PER_SOURCE", "10")),
-            rss_feeds=_split_csv(os.getenv("LCA_RSS_FEEDS")) or DEFAULT_RSS_FEEDS,
-            reddit_subreddits=_split_csv(os.getenv("LCA_REDDIT_SUBREDDITS")) or DEFAULT_REDDIT_SUBREDDITS,
-            youtube_channel_ids=_split_csv(os.getenv("LCA_YOUTUBE_CHANNEL_IDS")),
+            rss_feeds=_normalize_rss_feeds(DEFAULT_RSS_FEEDS if rss_feeds is None else rss_feeds),
+            reddit_subreddits=_normalize_subreddits(
+                DEFAULT_REDDIT_SUBREDDITS if reddit_subreddits is None else reddit_subreddits
+            ),
+            youtube_channel_ids=() if youtube_channel_ids is None else youtube_channel_ids,
             smtp=smtp,
         )
 

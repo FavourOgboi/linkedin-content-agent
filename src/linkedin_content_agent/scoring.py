@@ -10,22 +10,40 @@ from linkedin_content_agent.utils import parse_iso_datetime, unique_preserve_ord
 
 
 RELEVANCE_KEYWORDS = {
+    "ai",
     "agent",
+    "agentic",
     "agents",
+    "assistant",
+    "assistants",
+    "benchmark",
+    "chunking",
     "llm",
     "llms",
+    "mcp",
+    "embedding",
+    "embeddings",
+    "vector",
+    "vectors",
     "rag",
     "workflow",
     "workflows",
     "automation",
     "eval",
     "evaluation",
+    "guardrail",
+    "guardrails",
+    "hallucination",
+    "hallucinations",
     "retrieval",
     "reasoning",
     "prompt",
     "prompts",
     "inference",
     "schema",
+    "security",
+    "tool",
+    "tools",
     "dataset",
     "data",
     "analytics",
@@ -134,6 +152,8 @@ def build_candidate(signal: Signal, contract: DayContract, prior_titles: list[st
     source_component = _source_weight(signal.source)
     recency_component = recency_score(signal)
     relevance_component = relevance_score(signal)
+    if relevance_component <= 0.0:
+        return None
     evidence_component = evidence_strength(signal)
     novelty_component = novelty_penalty(signal.title, prior_titles)
 

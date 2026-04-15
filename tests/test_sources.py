@@ -9,7 +9,9 @@ if str(SRC) not in sys.path:
 from pathlib import Path
 import unittest
 
-from linkedin_content_agent.sources import parse_feed_bytes, parse_reddit_json
+from urllib.error import HTTPError
+
+from linkedin_content_agent.sources import RedditHotSource, parse_feed_bytes, parse_reddit_json
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -36,6 +38,22 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(len(signals), 2)
         self.assertEqual(signals[0].source, "reddit:MachineLearning")
         self.assertGreater(signals[0].engagement_hint["score"], 0)
+
+    def test_reddit_source_falls_back_to_rss_when_json_is_blocked(self) -> None:
+        rss_payload = (FIXTURES / "reddit" / "sample_hot_rss.xml").read_bytes()
+
+        def loader(url: str) -> bytes:
+            if url.endswith("hot.json?limit=2"):
+                raise HTTPError(url, 403, "Blocked", hdrs=None, fp=None)
+            if url.endswith(".rss"):
+                return rss_payload
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        source = RedditHotSource("MachineLearning", limit=2, loader=loader)
+        signals = source.fetch()
+        self.assertEqual(len(signals), 2)
+        self.assertEqual(signals[0].source, "reddit:MachineLearning")
+        self.assertIn("agent evals", signals[0].title.lower())
 
 
 if __name__ == "__main__":

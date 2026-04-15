@@ -10,7 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from linkedin_content_agent.config import load_dotenv_file
+from linkedin_content_agent.config import AppConfig, load_dotenv_file
 
 
 class ConfigTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class ConfigTests(unittest.TestCase):
         self.dotenv_path = self.temp_root / ".env"
 
     def tearDown(self) -> None:
-        for key in ("OPENAI_API_KEY", "LCA_OPENAI_MODEL"):
+        for key in ("OPENAI_API_KEY", "LCA_OPENAI_MODEL", "LCA_REDDIT_SUBREDDITS"):
             os.environ.pop(key, None)
         shutil.rmtree(self.temp_root, ignore_errors=True)
 
@@ -42,6 +42,14 @@ class ConfigTests(unittest.TestCase):
         load_dotenv_file(self.dotenv_path)
 
         self.assertEqual(os.environ["OPENAI_API_KEY"], "existing-key")
+
+    def test_blank_reddit_config_disables_reddit_sources(self) -> None:
+        self.dotenv_path.write_text("LCA_REDDIT_SUBREDDITS=\n", encoding="utf-8")
+
+        load_dotenv_file(self.dotenv_path)
+        config = AppConfig.from_env()
+
+        self.assertEqual(config.reddit_subreddits, ())
 
 
 if __name__ == "__main__":

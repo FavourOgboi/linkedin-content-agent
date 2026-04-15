@@ -55,6 +55,20 @@ class ScoringTests(unittest.TestCase):
         self.assertIsNotNone(candidate)
         self.assertGreater(candidate.novelty_penalty, 0.0)
 
+    def test_irrelevant_signal_is_filtered_out(self) -> None:
+        signal = Signal(
+            source="hackernews",
+            title="Don't feel like exercising? Maybe it's the wrong time of day for you",
+            url="https://example.com/exercise",
+            published_at=datetime.now(UTC).isoformat(),
+            engagement_hint={},
+            excerpt="A lifestyle article about exercise timing.",
+            raw_metadata={},
+        )
+        contract = resolve_day_contract("Wednesday")
+        candidate = build_candidate(signal, contract, prior_titles=[])
+        self.assertIsNone(candidate)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>reddit: the front page of the internet</title>
+  <entry>
+    <title>What people get wrong about agent evals</title>
+    <link rel="alternate" href="https://www.reddit.com/r/MachineLearning/comments/abc123/what_people_get_wrong_about_agent_evals/" />
+    <updated>2026-04-15T07:00:00+00:00</updated>
+    <id>t3_abc123</id>
+    <summary>A production eval pipeline looked correct until the workflow boundary broke.</summary>
+  </entry>
+  <entry>
+    <title>Unexpected tradeoff in RAG chunking</title>
+    <link rel="alternate" href="https://www.reddit.com/r/MachineLearning/comments/def456/unexpected_tradeoff_in_rag_chunking/" />
+    <updated>2026-04-14T09:00:00+00:00</updated>
+    <id>t3_def456</id>
+    <summary>Shorter chunks improved recall but damaged answer quality in downstream generation.</summary>
+  </entry>
+</feed>

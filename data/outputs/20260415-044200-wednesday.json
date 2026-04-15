@@ -1,0 +1,990 @@
+{
+  "summary": {
+    "run_id": "20260415-044200-wednesday",
+    "created_at": "2026-04-15T04:42:00.486608+00:00",
+    "day": "Wednesday",
+    "post_type": "Knowledge / Carousel",
+    "selected_topic": "What Steve Yegge\u2019s Google story gets right (and wrong) about how big companies adopt AI",
+    "status": "awaiting_review",
+    "source_count": 50,
+    "delivery_status": "sent",
+    "primary_artifact": "data\\outputs\\20260415-044200-wednesday.json",
+    "prompt_artifact": "data\\prompts\\20260415-044200-wednesday.json",
+    "backup_titles": [
+      "Notion\u2019s \u201cToken Town\u201d vs. Real-World Agents: Why Most Enterprise Agent Projects Stall at Slideware",
+      "Cloudflare Agent Cloud and the Illusion of \u201cPlug-and-Play\u201d Agents in Enterprises"
+    ],
+    "warnings": []
+  },
+  "generated_content": {
+    "primary": {
+      "day": "Wednesday",
+      "post_type": "Knowledge / Carousel",
+      "hook": "Steve Yegge\u2019s Google AI story is half-right. The interesting part is what it misses about how big companies actually adopt AI systems.",
+      "core_idea": [
+        "Use Steve Yegge\u2019s viral Google AI anecdote as a foil, not a scripture: highlight where his critique nails the reality of enterprise AI adoption and where it oversimplifies.",
+        "Call out specific, recurring anti-patterns I\u2019m seeing in large orgs trying to move from \"LLM demos\" to \"AI systems\"\u2014committee-ware, platform worship, and fake experiments.",
+        "Introduce a non-obvious pattern: the real constraint isn\u2019t model quality, it\u2019s the org\u2019s ability to change operating procedures, permissions, and accountability around AI-driven workflows.",
+        "Contrast the \"AI as a feature\" mindset with \"AI as an operating change\" using concrete examples from building agents and workflow automation in production contexts.",
+        "End with a compact mental model leaders can use to quickly diagnose whether their AI program is heading toward Google-style paralysis or actually compounding value."
+      ],
+      "draft_post": "Slide 1 \u2013 Title\nWhat Steve Yegge\u2019s Google AI story gets right (and wrong) about enterprise AI adoption\n\nSubtitle: Lessons from building real AI systems, not just LLM demos\n\n---\nSlide 2 \u2013 Quick recap (for context)\nSteve Yegge tells a wild story:\n- A senior Google tech director vents about AI\n- Endless reviews, policy blockers, security gates\n- Teams can\u2019t just ship AI-powered stuff, even with great infra\n\nThe takeaway people latched onto:\n\u201cGoogle is too bureaucratic to adopt AI.\u201d\n\nThat\u2019s true.\nBut it\u2019s also too shallow.\n\n---\nSlide 3 \u2013 What Yegge gets exactly right\nThree things he nails about big-company AI:\n\n1) AI is treated as a **\u201cdangerous plugin\u201d**\n   \u2013 Every workflow change triggers legal, security, policy\n   \u2013 Default stance: assume risk, demand exception\n\n2) Decision power is **orthogonal to AI competence**\n   \u2013 Policy committees with no builders\n   \u2013 Model and infra teams have influence, not authority\n\n3) Velocity is killed by **meta-work**\n   \u2013 Reviews, decks, steering groups\n   \u2013 More approval flows than actual AI flows\n\nIf you\u2019ve tried shipping AI in an enterprise, this is familiar.\n\n---\nSlide 4 \u2013 Where the story is misleading\nThe viral reading is:\n\u201cGoogle is slow because it\u2019s \u2018too safe\u2019. Just be less risk-averse.\u201d\n\nThat\u2019s not the interesting part.\n\nThe non-obvious reality I see in enterprises:\n- The real constraint isn\u2019t **caution**\n- It\u2019s **organizational refusal to change how work happens**\n\nYou can loosen policy all you want.\nIf:\n- Roles don\u2019t change,\n- Metrics don\u2019t change,\n- Systems of record don\u2019t change,\n\n\u2026your AI program will still stall.\n\n---\nSlide 5 \u2013 Mistake #1: Treating AI as a feature, not an operating change\nMost big companies do this:\n\n\"Let\u2019s add an LLM feature to our CRM / helpdesk / BI tool.\"\n\nWhat this misses:\n- AI systems don\u2019t add a pixel; they **change who does the work**\n- That means changing:\n  \u2013 Ownership (who\u2019s responsible when AI acts?)\n  \u2013 Control (what can be automated, by whom?)\n  \u2013 Escalation (how do humans overrule?)\n\nIf you don\u2019t touch process, permissions, and accountability:\nYou don\u2019t have AI systems.\nYou have an expensive autocomplete.\n\n---\nSlide 6 \u2013 Mistake #2: Platform worship\nYegge\u2019s story emphasizes infra and tools.\nMost enterprises copy that mistake:\n\n- \u201cWe need an AI platform first\u201d\n- 18-month roadmap\n- Vendor bakeoffs, RFPs, architecture boards\n\nPattern I see in the wild:\n- Infra teams think in terms of **capabilities**\n- The business needs **decisions and actions** changed\n\nConsequence:\n- Beautiful platform\n- Trivial use cases\n- Zero impact on how the company actually operates\n\nIf your AI platform doesn\u2019t break or rewrite at least one critical workflow, it\u2019s a cost center, not a transformation.\n\n---\nSlide 7 \u2013 Mistake #3: Fake experiments\nThe loudest internal message after Yegge\u2019s story was:\n\"We need more AI experimentation.\"\n\nMost orgs translate that into:\n- Hackathons\n- Demo days\n- Sandboxes with no production data\n\nThat\u2019s not experimentation.\nThat\u2019s theater.\n\nReal experiments:\n- Touch live workflows (even if only for 1% of traffic)\n- Measure latency, error rates, escalation load\n- Force you to negotiate with risk, compliance, and ops\n\nIf your \"pilot\" couldn\u2019t possibly break something important, it can\u2019t teach you how to adopt AI.\n\n---\nSlide 8 \u2013 What actually works: a pattern I see in successful teams\nThe teams that escape Google-style paralysis do almost the opposite:\n\n1) Start from a **specific decision or workflow**\n   \u2013 \"Triage support tickets\"\n   \u2013 \"Draft responses for KYC edge-cases\"\n   \u2013 \"Summarize weekly risk incidents for leadership\"\n\n2) Design the **operating model**, not the model call\n   \u2013 What\u2019s the AI agent allowed to do?\n   \u2013 When must a human review?\n   \u2013 How do we log, audit, and override?\n\n3) Ship a constrained agent into production quickly\n   \u2013 Narrow scope, dirty plumbing\n   \u2013 Real users, real stakes, reversible blast radius\n\n4) Then worry about platform\n   \u2013 Standardize patterns that actually worked\n   \u2013 Codify guardrails after they\u2019ve been battle-tested\n\n---\nSlide 9 \u2013 The non-obvious pattern: AI adoption is an org design problem\nIf you strip away the Google drama, a simple pattern emerges:\n\n- Small companies treat AI as **leverage**\n- Big companies treat AI as **surface area**\n\nSame tech, opposite behavior.\n\nThe orgs that win don\u2019t have better models.\nThey have:\n- Fewer approval hops between builder and production\n- Leaders willing to redraw swimlanes and KPIs\n- A bias toward changing workflows, not just UIs\n\nThat\u2019s the part Yegge\u2019s story gestures at but doesn\u2019t spell out.\n\n---\nSlide 10 \u2013 A quick diagnostic for your org\nThree brutally honest questions:\n\n1) Name one core workflow where:\n   \u2013 AI now does work a human used to do\n   \u2013 Metrics, ownership, and escalation paths changed\n\n2) How many approvals does it take to ship a new AI behavior to production?\n   \u2013 Count people, not Jira tickets\n\n3) Is your \u201cAI strategy\u201d deck mostly about:\n   \u2013 Tools, models, vendors\n   \u2013 Or workflows, outcomes, and changed responsibilities?\n\nIf you can\u2019t answer (1), or (2) > 5 people, you\u2019re on track to recreate Google\u2019s AI pain \u2014 just with less talent and fewer GPUs.\n\nThat\u2019s fixable. But not with more models.\nOnly with more willingness to rewire how your org actually works.",
+      "visual_suggestion": "Carousel with a clean, minimal, slightly technical look:\n- Slide 1: Bold title on dark background, a simple diagram of a monolith labeled \u201cOrg\u201d with a small AI chip icon sitting awkwardly on the side (hinting at AI as a bolted-on feature).\n- Slide 3: Simple flowchart showing \u201cAI idea \u2192 Policy/Legal/Security \u2192 Steering Committee \u2192 Maybe Pilot\u201d to visualize meta-work killing velocity.\n- Slide 5: Side-by-side comparison graphic: left \u201cAI as Feature\u201d (UI with a sparkle button), right \u201cAI as Operating Change\u201d (swimlane diagram with a bot lane added between human roles).\n- Slide 6: Illustration of a towering \u201cAI Platform\u201d block with tiny \u201cUse Cases\u201d blocks beside it to show platform worship.\n- Slide 8: Swimlane diagram of a concrete AI agent workflow (User \u2192 Agent \u2192 Human Reviewer \u2192 System of Record) with clear handoffs.\n- Slide 10: Three numbered questions in a checklist layout, with subtle emphasis (highlight/underline) on the words \u201cworkflow\u201d, \u201capprovals\u201d, and \u201cresponsibilities\u201d.",
+      "why_this_works": "This post hooks into a live, opinionated conversation (Yegge\u2019s Google story) but doesn\u2019t just retell it\u2014it uses it as a foil to surface deeper, less-discussed patterns in enterprise AI adoption.\n\nIt avoids generic AI talk and grounds everything in concrete anti-patterns I\u2019m actually seeing: platform worship, fake experiments, and treating AI as a cosmetic feature instead of an operating change. That positions the creator as a practitioner who understands both the technical and organizational sides of shipping AI systems.\n\nThe carousel format is used deliberately: each slide isolates a single mistake or pattern, with contrasts (feature vs operating change, experimentation vs theater) that are easy to screenshot and share inside companies. The diagnostic at the end turns the post into a tool leaders can apply immediately, increasing saves and comments from people recognizing their org in the description.",
+      "source_refs": [
+        {
+          "source": "Simon Willison\u2019s blog",
+          "title": "Steve Yegge",
+          "url": "https://simonwillison.net/2026/Apr/13/steve-yegge/#atom-everything"
+        }
+      ],
+      "self_audit": {
+        "passed_checks": [
+          "No generic motivation or platitudes; every slide focuses on concrete mistakes and patterns.",
+          "Directly addresses \u201cwhat people get wrong\u201d about enterprise AI adoption using specific anti-patterns.",
+          "Introduces non-obvious patterns (AI as operating change vs feature; leverage vs surface area).",
+          "Uses Steve Yegge\u2019s story as context and foil, not as clickbait or shallow commentary.",
+          "Tone is sharp, practitioner-oriented, and avoids hype language and emojis.",
+          "Content is specific to AI systems and workflows, not generic LLM explainers."
+        ],
+        "critic_notes": [
+          "Could be strengthened further with one explicit, concrete example from a specific domain (e.g., support, underwriting) to make the workflow change even more tangible.",
+          "Mentions Yegge\u2019s story at a conceptual level; if readers haven\u2019t seen the original, one more line of concrete detail might increase clarity.",
+          "The hook is specific, time-bound, and anchored in a real ongoing conversation (Steve Yegge\u2019s story), not generic AI platitudes.",
+          "The post uses Yegge as a foil, not as scripture: it explicitly distinguishes between what he gets right (AI as \u2018dangerous plugin\u2019, meta-work, orthogonal decision power) and what his narrative misses (operating-model change as the true constraint). This is a non-obvious layer, not beginner commentary.",
+          "Every slide contains at least one of: mistakes, tradeoffs, or non-obvious patterns: \u2018AI as feature vs operating change\u2019, \u2018platform worship\u2019, \u2018fake experiments\u2019, \u2018leverage vs surface area\u2019\u2014these are concrete and framed as patterns from experience, not textbook concepts.",
+          "The content focuses on AI systems and organizational adoption, not on explaining LLMs or basic AI; it assumes a relatively informed audience and talks at the level of workflows, approvals, and operating models.",
+          "The diagnostic slide (10) pushes readers into uncomfortable specificity (name one workflow, count approvals, examine strategy decks). That\u2019s the opposite of generic \u2018think big about AI\u2019 advice and aligns with a practitioner voice.",
+          "Tone is sharp, direct, and non-hype. There\u2019s no motivation-speak, no vague \u2018AI will change everything\u2019 language, and no emojis. It reads as someone who has actually tried to ship AI in enterprises.",
+          "The self-critique already notes the main missing piece (a more concrete example), and the rest of the package (visuals, why-this-works, backups) shows an architect-level understanding rather than beginner-level thinking."
+        ]
+      }
+    },
+    "backups": [
+      {
+        "title": "Notion\u2019s \u201cToken Town\u201d vs. Real-World Agents: Why Most Enterprise Agent Projects Stall at Slideware",
+        "angle": "tradeoff",
+        "hook": "Everyone is talking about Notion\u2019s \u201cToken Town\u201d and 100+ tools. The interesting question is: which parts of that agent architecture actually survive contact with a real enterprise?",
+        "why_now": "The Notion AI architecture deep-dive is circulating heavily among builders. It\u2019s a perfect moment to contrast a high-ambition agentic design with the constraints I see in actual enterprises: brittle tools, sparse telemetry, and change-averse workflows. This lets the creator talk about tradeoffs between elegant architectures and deployable systems, and explain why copying \u201c100 tools + orchestration\u201d is usually the wrong starting point for a bank, insurer, or large SaaS that doesn\u2019t control its whole stack.",
+        "visual_suggestion": "Carousel comparing two columns: left labeled \u201cToken Town (Idealized)\u201d with neat modular boxes (tools, orchestrator, knowledge graph); right labeled \u201cEnterprise Reality\u201d with messy, uneven blocks (legacy APIs, missing permissions, manual workarounds). Include one slide with a simplified sequence diagram of an agent call chain annotated with real-world failure points (auth, rate limits, missing context)."
+      },
+      {
+        "title": "Cloudflare Agent Cloud and the Illusion of \u201cPlug-and-Play\u201d Agents in Enterprises",
+        "angle": "insight",
+        "hook": "Cloudflare + OpenAI make it look like enterprises can just \u2018turn on\u2019 agents. In practice, the hard part is everything the platform doesn\u2019t own.",
+        "why_now": "Cloudflare Agent Cloud with OpenAI is being positioned as a fast path to enterprise agents. This is an ideal moment to dissect the gap between platform promises and what it actually takes to wire agents into incident response, data access, and approval flows. The post can call out the non-obvious insight: infra removes friction from model calls, but it cannot solve organizational entropy, messy data contracts, or the lack of clear \u201cagent rights and responsibilities.\u201d",
+        "visual_suggestion": "Carousel that visually separates \u201cWhat the platform gives you\u201d (simple diagram: User \u2192 Agent Cloud \u2192 LLM) from \u201cWhat you still need to design\u201d (complex diagram: systems of record, identity/permissions, human-in-the-loop review, logging/audit). Use overlays or highlights to show the narrow slice the vendor truly simplifies vs the large block of unglamorous integration and process work that still belongs to the enterprise.]},"
+      }
+    ],
+    "selected_topic_reason": "This topic rides an active wave of discussion around Steve Yegge\u2019s inside-Google AI story, but uses it as a lens rather than a crutch. It\u2019s perfect for the creator\u2019s positioning: someone moving from data/analytics into AI systems who cares about depth and real-world adoption, not hype. By dissecting what Yegge\u2019s story gets right (bureaucracy, meta-work, misaligned decision power) and what it misses (the primacy of operating-model change over tools), the creator can surface non-obvious enterprise patterns they\u2019re seeing as they build agents and AI workflows. That makes the post feel like field notes from a builder, not commentary from the sidelines."
+  },
+  "review_url": "https://github.com/FavourOgboi/linkedin-content-agent/actions/workflows/review_capture.yml?run_id=20260415-044200-wednesday",
+  "warnings": [],
+  "candidates": [
+    {
+      "title": "Steve Yegge",
+      "score_total": 3.1612,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.8112,
+        "relevance": 0.75,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.0,
+        "total": 3.1612
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Steve Yegge",
+        "Excerpt: Steve Yegge : I was chatting with my buddy at Google, who's been a tech director there for about 20 years, about their AI adoption. Craziest convo I've had all year. The TL;DR is t"
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.0,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Steve Yegge",
+          "url": "https://simonwillison.net/2026/Apr/13/steve-yegge/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Trusted access for the next era of cyber defense",
+      "score_total": 3.0717,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.9565,
+        "relevance": 0.75,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.0348,
+        "total": 3.0717
+      },
+      "day_fit": "weak",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Trusted access for the next era of cyber defense",
+        "Excerpt: Trusted access for the next era of cyber defense OpenAI's answer to Claude Mythos appears to be a new model called GPT-5.4-Cyber: In preparation for increasingly more capable model"
+      ],
+      "angles": [
+        "unexpected result"
+      ],
+      "novelty_penalty": 0.0348,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Trusted access for the next era of cyber defense",
+          "url": "https://simonwillison.net/2026/Apr/14/trusted-access-openai/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Cybersecurity Looks Like Proof of Work Now",
+      "score_total": 3.0464,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.9464,
+        "relevance": 0.5,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.0,
+        "total": 3.0464
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Cybersecurity Looks Like Proof of Work Now",
+        "Excerpt: Cybersecurity Looks Like Proof of Work Now The UK's AI Safety Institute recently published Our evaluation of Claude Mythos Preview\u2019s cyber capabilities , their own independent anal"
+      ],
+      "angles": [
+        "tradeoff"
+      ],
+      "novelty_penalty": 0.0,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Cybersecurity Looks Like Proof of Work Now",
+          "url": "https://simonwillison.net/2026/Apr/14/cybersecurity-proof-of-work/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Notion\u2019s Token Town: 5 Rebuilds, 100+ Tools, MCP vs CLIs and the Software Factory Future \u2014 Simon Last & Sarah Sachs of Notion",
+      "score_total": 2.888,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.9751,
+        "relevance": 0.5,
+        "evidence_strength": 0.575,
+        "novelty_penalty": 0.0121,
+        "total": 2.888
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://www.latent.space/feed",
+        "Headline: Notion\u2019s Token Town: 5 Rebuilds, 100+ Tools, MCP vs CLIs and the Software Factory Future \u2014 Simon Last & Sarah Sachs of Notion",
+        "Excerpt: Notion's cofounder and head of AI peel back the curtains to talk about finally shipping the Knowledge Work AI agents the world has been waiting for."
+      ],
+      "angles": [
+        "tradeoff"
+      ],
+      "novelty_penalty": 0.0121,
+      "supporting_signals": [
+        {
+          "source": "rss:https://www.latent.space/feed",
+          "title": "Notion\u2019s Token Town: 5 Rebuilds, 100+ Tools, MCP vs CLIs and the Software Factory Future \u2014 Simon Last & Sarah Sachs of Notion",
+          "url": "https://www.latent.space/p/notion"
+        }
+      ]
+    },
+    {
+      "title": "Enterprises power agentic workflows in Cloudflare Agent Cloud with OpenAI",
+      "score_total": 2.8685,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.722,
+        "relevance": 0.75,
+        "evidence_strength": 0.5625,
+        "novelty_penalty": 0.016,
+        "total": 2.8685
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://openai.com/news/rss.xml",
+        "Headline: Enterprises power agentic workflows in Cloudflare Agent Cloud with OpenAI",
+        "Excerpt: Cloudflare brings OpenAI\u2019s GPT-5.4 and Codex to Agent Cloud, enabling enterprises to build, deploy, and scale AI agents for real-world tasks with speed and security."
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.016,
+      "supporting_signals": [
+        {
+          "source": "rss:https://openai.com/news/rss.xml",
+          "title": "Enterprises power agentic workflows in Cloudflare Agent Cloud with OpenAI",
+          "url": "https://openai.com/index/cloudflare-openai-agent-cloud"
+        }
+      ]
+    },
+    {
+      "title": "datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection",
+      "score_total": 2.8219,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.9719,
+        "relevance": 0.25,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.0,
+        "total": 2.8219
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection",
+        "Excerpt: datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection Datasette has long protected against CSRF attacks using CSRF tokens, implemented using my asgi-cs"
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.0,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection",
+          "url": "https://simonwillison.net/2026/Apr/14/replace-token-based-csrf/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Gemma 4 audio with MLX",
+      "score_total": 2.7661,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.6861,
+        "relevance": 0.5,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.02,
+        "total": 2.7661
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Gemma 4 audio with MLX",
+        "Excerpt: Thanks to a tip from Rahim Nathwani , here's a uv run recipe for transcribing an audio file on macOS using the 10.28 GB Gemma 4 E2B model with MLX and mlx-vlm : uv run --python 3.1"
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.02,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Gemma 4 audio with MLX",
+          "url": "https://simonwillison.net/2026/Apr/12/mlx-audio/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Quoting Bryan Cantrill",
+      "score_total": 2.6776,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.7026,
+        "relevance": 0.375,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.0,
+        "total": 2.6776
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Quoting Bryan Cantrill",
+        "Excerpt: The problem is that LLMs inherently lack the virtue of laziness . Work costs nothing to an LLM. LLMs do not feel a need to optimize for their own (or anyone's) future time, and wil"
+      ],
+      "angles": [
+        "tradeoff",
+        "insight"
+      ],
+      "novelty_penalty": 0.0,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Quoting Bryan Cantrill",
+          "url": "https://simonwillison.net/2026/Apr/13/bryan-cantrill/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Free, fast diagnostic tools for DNS, email authentication, and network security",
+      "score_total": 2.5725,
+      "score_breakdown": {
+        "source_weight": 0.8,
+        "recency": 0.9524,
+        "relevance": 0.25,
+        "evidence_strength": 0.3875,
+        "novelty_penalty": 0.0174,
+        "total": 2.5725
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: hackernews",
+        "Headline: Free, fast diagnostic tools for DNS, email authentication, and network security",
+        "Excerpt: Article URL: https://mrdns.com/ Comments URL: https://news.ycombinator.com/item?id=47771220 Points: 44 # Comments: 4"
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.0174,
+      "supporting_signals": [
+        {
+          "source": "hackernews",
+          "title": "Free, fast diagnostic tools for DNS, email authentication, and network security",
+          "url": "https://mrdns.com/"
+        }
+      ]
+    },
+    {
+      "title": "5 Best Books for Building Agentic AI Systems in 2026",
+      "score_total": 2.487,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.7578,
+        "relevance": 0.375,
+        "evidence_strength": 0.5375,
+        "novelty_penalty": 0.0333,
+        "total": 2.487
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://www.kdnuggets.com/feed",
+        "Headline: 5 Best Books for Building Agentic AI Systems in 2026",
+        "Excerpt: These five books are the ones worth your time in 2026 if you are building systems where models don't just respond, they act."
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.0333,
+      "supporting_signals": [
+        {
+          "source": "rss:https://www.kdnuggets.com/feed",
+          "title": "5 Best Books for Building Agentic AI Systems in 2026",
+          "url": "https://www.kdnuggets.com/5-best-books-for-building-agentic-ai-systems-in-2026"
+        }
+      ]
+    },
+    {
+      "title": "Exploring the new `servo` crate",
+      "score_total": 2.481,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.776,
+        "relevance": 0.125,
+        "evidence_strength": 0.75,
+        "novelty_penalty": 0.02,
+        "total": 2.481
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://simonwillison.net/atom/everything/",
+        "Headline: Exploring the new `servo` crate",
+        "Excerpt: Research: Exploring the new `servo` crate In Servo is now available on crates.io the Servo team announced the initial release of the servo crate, which packages their browser engin"
+      ],
+      "angles": [
+        "mistake"
+      ],
+      "novelty_penalty": 0.02,
+      "supporting_signals": [
+        {
+          "source": "rss:https://simonwillison.net/atom/everything/",
+          "title": "Exploring the new `servo` crate",
+          "url": "https://simonwillison.net/2026/Apr/13/servo-crate-exploration/#atom-everything"
+        }
+      ]
+    },
+    {
+      "title": "Top 7 Docker Compose Templates Every Developer Should Use",
+      "score_total": 2.4756,
+      "score_breakdown": {
+        "source_weight": 0.65,
+        "recency": 0.9006,
+        "relevance": 0.25,
+        "evidence_strength": 0.475,
+        "novelty_penalty": 0.0,
+        "total": 2.4756
+      },
+      "day_fit": "strong",
+      "evidence": [
+        "Source: rss:https://www.kdnuggets.com/feed",
+        "Headline: Top 7 Docker Compose Templates Every Developer Should Use",
+        "Excerpt: Learn seven Docker Compose templates for CMS, web apps, databases, Python backends, streaming, automation, and local AI development."
+      ],
+      "angles": [
+        "insight"
+      ],
+      "novelty_penalty": 0.0,
+      "supporting_signals": [
+        {
+          "source": "rss:https://www.kdnuggets.com/feed",
+          "title": "Top 7 Docker Compose Templates Every Developer Should Use",
+          "url": "https://www.kdnuggets.com/top-7-docker-compose-templates-every-developer-should-use"
+        }
+      ]
+    }
+  ],
+  "signals": [
+    {
+      "source": "hackernews",
+      "title": "Dependency cooldowns turn you into a free-rider",
+      "url": "https://calpaterson.com/deps.html",
+      "published_at": "2026-04-15T02:03:12+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://calpaterson.com/deps.html Comments URL: https://news.ycombinator.com/item?id=47773812 Points: 22 # Comments: 1",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47773812"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Not all elementary functions can be expressed with exp-minus-log",
+      "url": "https://www.stylewarning.com/posts/not-all-elementary/",
+      "published_at": "2026-04-15T01:59:18+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://www.stylewarning.com/posts/not-all-elementary/ Comments URL: https://news.ycombinator.com/item?id=47773788 Points: 6 # Comments: 0",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47773788"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "OpenAI's $852B valuation faces investor scrutiny amid strategy shift, FT reports",
+      "url": "https://www.reuters.com/legal/transactional/openai-investors-question-852-billion-valuation-strategy-shifts-ft-reports-2026-04-14/",
+      "published_at": "2026-04-15T01:36:22+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://www.reuters.com/legal/transactional/openai-investors-question-852-billion-valuation-strategy-shifts-ft-reports-2026-04-14/ Comments URL: https://news.ycombinator.com/item?id=47773640 Points: 84 # Comments: 79",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47773640"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Don't feel like exercising? Maybe it's the wrong time of day for you",
+      "url": "https://www.bbc.com/news/articles/cd6lzpxwx50o",
+      "published_at": "2026-04-15T00:20:58+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://www.bbc.com/news/articles/cd6lzpxwx50o Comments URL: https://news.ycombinator.com/item?id=47773168 Points: 11 # Comments: 4",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47773168"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Apple App Store threatened to remove Grok over deepfakes: Letter",
+      "url": "https://www.nbcnews.com/tech/tech-news/apple-threat-remove-grok-app-store-deepfake-letter-musk-x-ai-rcna331677",
+      "published_at": "2026-04-14T23:41:43+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://www.nbcnews.com/tech/tech-news/apple-threat-remove-grok-app-store-deepfake-letter-musk-x-ai-rcna331677 Comments URL: https://news.ycombinator.com/item?id=47772906 Points: 62 # Comments: 29",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47772906"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Stop Flock",
+      "url": "https://stopflock.com",
+      "published_at": "2026-04-14T21:56:05+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://stopflock.com Comments URL: https://news.ycombinator.com/item?id=47772012 Points: 479 # Comments: 118",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47772012"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Tactical Success, Strategic Failure? Washington Walks the Path to Defeat in Iran",
+      "url": "https://warontherocks.com/tactical-success-strategic-failure-washington-walks-the-path-to-defeat-in-iran/",
+      "published_at": "2026-04-14T21:00:05+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://warontherocks.com/tactical-success-strategic-failure-washington-walks-the-path-to-defeat-in-iran/ Comments URL: https://news.ycombinator.com/item?id=47771463 Points: 34 # Comments: 9",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47771463"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Free, fast diagnostic tools for DNS, email authentication, and network security",
+      "url": "https://mrdns.com/",
+      "published_at": "2026-04-14T20:42:21+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://mrdns.com/ Comments URL: https://news.ycombinator.com/item?id=47771220 Points: 44 # Comments: 4",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47771220"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Trusted access for the next era of cyber defense",
+      "url": "https://openai.com/index/scaling-trusted-access-for-cyber-defense/",
+      "published_at": "2026-04-14T20:07:20+00:00",
+      "engagement_hint": {},
+      "excerpt": "Article URL: https://openai.com/index/scaling-trusted-access-for-cyber-defense/ Comments URL: https://news.ycombinator.com/item?id=47770770 Points: 70 # Comments: 48",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47770770"
+      }
+    },
+    {
+      "source": "hackernews",
+      "title": "Tell HN: Fiverr left customer files public and searchable",
+      "url": "https://news.ycombinator.com/item?id=47769796",
+      "published_at": "2026-04-14T18:56:40+00:00",
+      "engagement_hint": {},
+      "excerpt": "Fiverr (gig work/task platform, competitor to Upwork) uses a service called Cloudinary to process PDF/images in messaging, including work products from the worker to client. Besides the PDF processing value add, Cloudinary effectively acts like S3 here, serving assets directly to the web client. Like S3, it has support for signed/expiring URLs. However, Fiverr opted to use public URLs, not signed ones, for sensitive client-worker communication. Moreover, it seems like they may be serving public HTML somewhere that links to these files. As a result, hundreds are in Google search results, many containing PII. Example query: site:fiverr-res.cloudinary.com form 1040 In fact, Fiverr actively buys Google Ads for keywords like \"form 1234 filing\" despite knowing that it does not adequately secure the resulting work product, causing the preparer to violate the GLBA/FTC Safeguards Rule. Responsible Disclosure Note -- 40 days have passed since this was notified to the designated vulnerability email (security@fiverr.com). The security team did not reply. Therefore, this is being made public as it doesn't seem eligible for CVE/CERT processing as it is not really a code vulnerability, and I don't know anyone else who would care about it. Comments URL: https://news.ycombinator.com/item?id=47769796 Points: 443 # Comments: 88",
+      "raw_metadata": {
+        "guid": "https://news.ycombinator.com/item?id=47769796"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Zig 0.16.0 release notes: \"Juicy Main\"",
+      "url": "https://simonwillison.net/2026/Apr/15/juicy-main/#atom-everything",
+      "published_at": "2026-04-15T01:59:21+00:00",
+      "engagement_hint": {},
+      "excerpt": "Zig 0.16.0 release notes: \"Juicy Main\" Zig has really good release notes - comprehensive, detailed, and with relevant usage examples for each of the new features. Of particular note in the newly released Zig 0.16.0 is what they are calling \"Juicy Main\" - a dependency injection feature for your program's main() function where accepting a process.Init parameter grants access to a struct of useful properties: const std = @import ( \"std\" ); pub fn main ( init : std.process.Init ) ! void { /// general purpose allocator for temporary heap allocations: const gpa = init . gpa ; /// default Io implementation: const io = init . io ; /// access to environment variables: std . log . info ( \"{d} env vars\" , .{ init . environ_map . count ()}); /// access to CLI arguments const args = try init . minimal . args . toSlice ( init . arena . allocator () ); } Via Lobste.rs Tags: zig",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/15/juicy-main/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection",
+      "url": "https://simonwillison.net/2026/Apr/14/replace-token-based-csrf/#atom-everything",
+      "published_at": "2026-04-14T23:58:53+00:00",
+      "engagement_hint": {},
+      "excerpt": "datasette PR #2689: Replace token-based CSRF with Sec-Fetch-Site header protection Datasette has long protected against CSRF attacks using CSRF tokens, implemented using my asgi-csrf Python library. These are something of a pain to work with - you need to scatter forms in templates with lines and then selectively disable CSRF protection for APIs that are intended to be called from outside the browser. I've been following Filippo Valsorda's research here with interest, described in this detailed essay from August 2025 and shipped as part of Go 1.25 that same month. I've now landed the same change in Datasette. Here's the PR description - Claude Code did much of the work (across 10 commits, closely guided by me and cross-reviewed by GPT-5.4) but I've decided to start writing these PR descriptions by hand, partly to make them more concise and also as an exercise in keeping myself honest. New CSRF protection middleware inspired by Go 1.25 and this research by Filippo Valsorda. This replaces the old CSRF token based protection. Removes all instances of in the templates - they are no longer needed. Removes the def skip_csrf(datasette, scope): plugin hook defined in datasette/hookspecs.py and its documentation and tests. Updated CSRF protection documentation to describe the new approach. Upgrade guide now describes the CSRF change . Tags: csrf , security , datasette , ai-assisted-programming",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/14/replace-token-based-csrf/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Trusted access for the next era of cyber defense",
+      "url": "https://simonwillison.net/2026/Apr/14/trusted-access-openai/#atom-everything",
+      "published_at": "2026-04-14T21:23:59+00:00",
+      "engagement_hint": {},
+      "excerpt": "Trusted access for the next era of cyber defense OpenAI's answer to Claude Mythos appears to be a new model called GPT-5.4-Cyber: In preparation for increasingly more capable models from OpenAI over the next few months, we are fine-tuning our models specifically to enable defensive cybersecurity use cases, starting today with a variant of GPT\u20115.4 trained to be cyber-permissive: GPT\u20115.4\u2011Cyber. They're also extending a program they launched in February (which I had missed) called Trusted Access for Cyber , where users can verify their identity (via a photo of a government-issued ID processed by Persona ) to gain \"reduced friction\" access to OpenAI's models for cybersecurity work. Honestly, this OpenAI announcement is difficult to follow. Unsurprisingly they don't mention Anthropic at all, but much of the piece emphasizes their many years of existing cybersecurity work and their goal to \"democratize access\" to these tools, hence the emphasis on that self-service verification flow from February. If you want access to their best security tools you still need to go through an extra Google Form application process though, which doesn't feel particularly different to me from Anthropic's Project Glasswing . Via Hacker News Tags: security , ai , openai , generative-ai , llms , anthropic , ai-security-research",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/14/trusted-access-openai/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Cybersecurity Looks Like Proof of Work Now",
+      "url": "https://simonwillison.net/2026/Apr/14/cybersecurity-proof-of-work/#atom-everything",
+      "published_at": "2026-04-14T19:41:48+00:00",
+      "engagement_hint": {},
+      "excerpt": "Cybersecurity Looks Like Proof of Work Now The UK's AI Safety Institute recently published Our evaluation of Claude Mythos Preview\u2019s cyber capabilities , their own independent analysis of Claude Mythos which backs up Anthropic's claims that it is exceptionally effective at identifying security vulnerabilities. Drew Breunig notes that AISI's report shows that the more tokens (and hence money) they spent the better the result they got, which leads to a strong economic incentive to spend as much as possible on security reviews: If Mythos continues to find exploits so long as you keep throwing money at it, security is reduced to a brutally simple equation: to harden a system you need to spend more tokens discovering exploits than attackers will spend exploiting them . An interesting result of this is that open source libraries become more valuable, since the tokens spent securing them can be shared across all of their users. This directly counters the idea that the low cost of vibe-coding up a replacement for an open source library makes those open source projects less attractive. Tags: open-source , ai , generative-ai , llms , drew-breunig , vibe-coding , ai-security-research",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/14/cybersecurity-proof-of-work/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Steve Yegge",
+      "url": "https://simonwillison.net/2026/Apr/13/steve-yegge/#atom-everything",
+      "published_at": "2026-04-13T20:59:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Steve Yegge : I was chatting with my buddy at Google, who's been a tech director there for about 20 years, about their AI adoption. Craziest convo I've had all year. The TL;DR is that Google engineering appears to have the same AI adoption footprint as John Deere, the tractor company. Most of the industry has the same internal adoption curve: 20% agentic power users, 20% outright refusers, 60% still using Cursor or equivalent chat tool. It turns out Google has this curve too. [...] There has been an industry-wide hiring freeze for 18+ months, during which time nobody has been moving jobs. So there are no clued-in people coming in from the outside to tell Google how far behind they are, how utterly mediocre they have become as an eng org. Addy Osmani : On behalf of @Google, this post doesn't match the state of agentic coding at our company. Over 40K SWEs use agentic coding weekly here. Googlers have access to our own versions of @antigravity, @geminicli, custom models, skills, CLIs and MCPs for our daily work. Orchestrators, agent loops, virtual SWE teams and many other systems are actively available to folks. [...] Demis Hassabis : Maybe tell your buddy to do some actual work and to stop spreading absolute nonsense. This post is completely false and just pure clickbait. Tags: addy-osmani , steve-yegge , google , generative-ai , agentic-engineering , ai , llms",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/13/steve-yegge/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Exploring the new `servo` crate",
+      "url": "https://simonwillison.net/2026/Apr/13/servo-crate-exploration/#atom-everything",
+      "published_at": "2026-04-13T15:04:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Research: Exploring the new `servo` crate In Servo is now available on crates.io the Servo team announced the initial release of the servo crate, which packages their browser engine as an embeddable library. I set Claude Code for web the task of figuring out what it can do, building a CLI tool for taking screenshots using it and working out if it could be compiled to WebAssembly. The servo-shot Rust tool it built works pretty well: git clone https://github.com/simonw/research cd research/servo-crate-exploration/servo-shot cargo build ./target/debug/servo-shot https://news.ycombinator.com/ Here's the result: Compiling Servo itself to WebAssembly is not feasible due to its heavy use of threads and dependencies like SpiderMonkey, but Claude did build me this playground page for trying out a WebAssembly build of the html5ever and markup5ever_rcdom crates, providing a tool for turning fragments of HTML into a parse tree. Tags: research , browsers , rust , webassembly , claude-code , servo",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/13/servo-crate-exploration/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Quoting Bryan Cantrill",
+      "url": "https://simonwillison.net/2026/Apr/13/bryan-cantrill/#atom-everything",
+      "published_at": "2026-04-13T02:44:24+00:00",
+      "engagement_hint": {},
+      "excerpt": "The problem is that LLMs inherently lack the virtue of laziness . Work costs nothing to an LLM. LLMs do not feel a need to optimize for their own (or anyone's) future time, and will happily dump more and more onto a layercake of garbage. Left unchecked, LLMs will make systems larger, not better \u2014 appealing to perverse vanity metrics, perhaps, but at the cost of everything that matters. As such, LLMs highlight how essential our human laziness is: our finite time forces us to develop crisp abstractions in part because we don't want to waste our (human!) time on the consequences of clunky ones. \u2014 Bryan Cantrill , The peril of laziness lost Tags: bryan-cantrill , ai , llms , ai-assisted-programming , generative-ai",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/13/bryan-cantrill/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "Gemma 4 audio with MLX",
+      "url": "https://simonwillison.net/2026/Apr/12/mlx-audio/#atom-everything",
+      "published_at": "2026-04-12T23:57:53+00:00",
+      "engagement_hint": {},
+      "excerpt": "Thanks to a tip from Rahim Nathwani , here's a uv run recipe for transcribing an audio file on macOS using the 10.28 GB Gemma 4 E2B model with MLX and mlx-vlm : uv run --python 3.13 --with mlx_vlm --with torchvision --with gradio \\ mlx_vlm.generate \\ --model google/gemma-4-e2b-it \\ --audio file.wav \\ --prompt \"Transcribe this audio\" \\ --max-tokens 500 \\ --temperature 1.0 Your browser does not support the audio element. I tried it on this 14 second .wav file and it output the following: This front here is a quick voice memo. I want to try it out with MLX VLM. Just going to see if it can be transcribed by Gemma and how that works. (That was supposed to be \"This right here...\" and \"... how well that works\" but I can hear why it misinterpreted that as \"front\" and \"how that works\".) Tags: uv , mlx , ai , gemma , llms , speech-to-text , python , generative-ai",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/12/mlx-audio/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "SQLite 3.53.0",
+      "url": "https://simonwillison.net/2026/Apr/11/sqlite/#atom-everything",
+      "published_at": "2026-04-11T19:56:53+00:00",
+      "engagement_hint": {},
+      "excerpt": "SQLite 3.53.0 SQLite 3.52.0 was withdrawn so this is a pretty big release with a whole lot of accumulated user-facing and internal improvements. Some that stood out to me: ALTER TABLE can now add and remove NOT NULL and CHECK constraints - I've previously used my own sqlite-utils transform() method for this. New json_array_insert() function and its jsonb equivalent. Significant improvements to CLI mode , including result formatting. The result formatting improvements come from a new library, the Query Results Formatter . I had Claude Code (on my phone) compile that to WebAssembly and build this playground interface for trying that out. Via Lobste.rs Tags: sql , sqlite",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/11/sqlite/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://simonwillison.net/atom/everything/",
+      "title": "SQLite Query Result Formatter Demo",
+      "url": "https://simonwillison.net/2026/Apr/11/sqlite-qrf/#atom-everything",
+      "published_at": "2026-04-11T19:35:31+00:00",
+      "engagement_hint": {},
+      "excerpt": "Tool: SQLite Query Result Formatter Demo See my notes on SQLite 3.53.0 . This playground provides a UI for trying out the various rendering options for SQL result tables from the new Query Result Formatter library, compiled to WebAssembly. Tags: tools , sqlite",
+      "raw_metadata": {
+        "id": "https://simonwillison.net/2026/Apr/11/sqlite-qrf/#atom-everything"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Trusted access for the next era of cyber defense",
+      "url": "https://openai.com/index/scaling-trusted-access-for-cyber-defense",
+      "published_at": "2026-04-14T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "OpenAI expands its Trusted Access for Cyber program, introducing GPT-5.4-Cyber to vetted defenders and strengthening safeguards as AI cybersecurity capabilities advance.",
+      "raw_metadata": {
+        "guid": "https://openai.com/index/scaling-trusted-access-for-cyber-defense"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Enterprises power agentic workflows in Cloudflare Agent Cloud with OpenAI",
+      "url": "https://openai.com/index/cloudflare-openai-agent-cloud",
+      "published_at": "2026-04-13T06:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Cloudflare brings OpenAI\u2019s GPT-5.4 and Codex to Agent Cloud, enabling enterprises to build, deploy, and scale AI agents for real-world tasks with speed and security.",
+      "raw_metadata": {
+        "guid": "https://openai.com/index/cloudflare-openai-agent-cloud"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "ChatGPT for finance teams",
+      "url": "https://openai.com/academy/finance",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how finance teams use ChatGPT to streamline reporting, analyze data, improve forecasts, and communicate insights more clearly.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/finance"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "ChatGPT for marketing teams",
+      "url": "https://openai.com/academy/marketing",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how marketing teams use ChatGPT to plan campaigns, generate content, analyze performance, and move from ideas to execution faster.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/marketing"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Getting started with ChatGPT",
+      "url": "https://openai.com/academy/getting-started",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how to use ChatGPT, start your first conversation, and discover simple ways to write, brainstorm, and solve problems with AI.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/getting-started"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Financial services",
+      "url": "https://openai.com/academy/financial-services",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Explore AI resources for financial services, including prompt packs, GPTs, guides, and tools to help institutions deploy and scale AI securely.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/financial-services"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Our response to the Axios developer tool compromise",
+      "url": "https://openai.com/index/axios-developer-tool-compromise",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "OpenAI responds to the Axios supply chain attack by rotating macOS code signing certificates, updating apps, and confirming no user data was compromised.",
+      "raw_metadata": {
+        "guid": "https://openai.com/index/axios-developer-tool-compromise"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Brainstorming with ChatGPT",
+      "url": "https://openai.com/academy/brainstorming",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how to use ChatGPT to brainstorm ideas, organize thinking, and turn rough concepts into structured, actionable plans.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/brainstorming"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Responsible and safe use of AI",
+      "url": "https://openai.com/academy/responsible-and-safe-use",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how to use AI responsibly with best practices for safety, accuracy, and transparency when using tools like ChatGPT.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/responsible-and-safe-use"
+      }
+    },
+    {
+      "source": "rss:https://openai.com/news/rss.xml",
+      "title": "Writing with ChatGPT",
+      "url": "https://openai.com/academy/writing",
+      "published_at": "2026-04-10T00:00:00+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn how to use ChatGPT for writing to draft, revise, and refine content with clear structure, tone, and intent.",
+      "raw_metadata": {
+        "guid": "https://openai.com/academy/writing"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Collaborative AI Systems: Human-AI Teaming Workflows",
+      "url": "https://www.kdnuggets.com/collaborative-ai-systems-human-ai-teaming-workflows",
+      "published_at": "2026-04-14T14:00:31+00:00",
+      "engagement_hint": {},
+      "excerpt": "Everyone says they're \"collaborating\" with AI. Most are just giving orders and accepting whatever comes back.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=201993"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Top 7 Docker Compose Templates Every Developer Should Use",
+      "url": "https://www.kdnuggets.com/top-7-docker-compose-templates-every-developer-should-use",
+      "published_at": "2026-04-14T12:00:21+00:00",
+      "engagement_hint": {},
+      "excerpt": "Learn seven Docker Compose templates for CMS, web apps, databases, Python backends, streaming, automation, and local AI development.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=203703"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Breaking Down the .claude Folder",
+      "url": "https://www.kdnuggets.com/breaking-down-the-claude-folder",
+      "published_at": "2026-04-13T16:00:07+00:00",
+      "engagement_hint": {},
+      "excerpt": "The .claude folder is created by tools that integrate with Claude to store local state, to keep track of how the model behaves inside your project.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204317"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Are AI Agents Your Next Security Nightmare?",
+      "url": "https://www.kdnuggets.com/are-ai-agents-your-next-security-nightmare",
+      "published_at": "2026-04-13T14:00:22+00:00",
+      "engagement_hint": {},
+      "excerpt": "This article provides a reflective summary, based on the most recent insights and dilemmas, about the current state of security in AI agents.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=203938"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "5 Best Books for Building Agentic AI Systems in 2026",
+      "url": "https://www.kdnuggets.com/5-best-books-for-building-agentic-ai-systems-in-2026",
+      "published_at": "2026-04-13T12:00:52+00:00",
+      "engagement_hint": {},
+      "excerpt": "These five books are the ones worth your time in 2026 if you are building systems where models don't just respond, they act.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204341"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Advanced NotebookLM Tips & Tricks for Power Users",
+      "url": "https://www.kdnuggets.com/advanced-notebooklm-tips-tricks-for-power-users",
+      "published_at": "2026-04-10T14:00:06+00:00",
+      "engagement_hint": {},
+      "excerpt": "Let's break down five newly introduced, high-impact features, and discuss how advanced practitioners can incorporate them into their daily workflows to maximize productivity.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204247"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "5 Useful Things to Do with Google\u2019s Antigravity Besides Coding",
+      "url": "https://www.kdnuggets.com/5-useful-things-to-do-with-googles-antigravity-besides-coding",
+      "published_at": "2026-04-10T12:00:01+00:00",
+      "engagement_hint": {},
+      "excerpt": "Antigravity is sitting on a stack of capabilities, many of which have very little to do with writing functions.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204289"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "All About Pyjanitor\u2019s Method Chaining Functionality, And Why Its Useful",
+      "url": "https://www.kdnuggets.com/all-about-pyjanitors-method-chaining-functionality-and-why-its-useful",
+      "published_at": "2026-04-09T16:00:53+00:00",
+      "engagement_hint": {},
+      "excerpt": "Cleancode, clean data: why Pyjanitor's method chaining approach is the pathway to reach this double goal.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204149"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "Kaggle + Google\u2019s Free 5-Day Gen AI Course",
+      "url": "https://www.kdnuggets.com/kaggle-googles-free-5-day-gen-ai-course",
+      "published_at": "2026-04-09T14:00:16+00:00",
+      "engagement_hint": {},
+      "excerpt": "This five day generative AI intensive course covers foundational models, embeddings, AI agents, domain-specific LLMs, and MLOps through a week of whitepapers, hands-on code labs, and live expert sessions.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204276"
+      }
+    },
+    {
+      "source": "rss:https://www.kdnuggets.com/feed",
+      "title": "5 Docker Containers for Small Business",
+      "url": "https://www.kdnuggets.com/5-docker-containers-for-small-business",
+      "published_at": "2026-04-09T12:00:30+00:00",
+      "engagement_hint": {},
+      "excerpt": "Here are five ready-to-go Docker containers that can be deployed today to make any small business run smoother.",
+      "raw_metadata": {
+        "guid": "https://www.kdnuggets.com/?p=204236"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Humanity's Last Gasp",
+      "url": "https://www.latent.space/p/ainews-humanitys-last-gasp",
+      "published_at": "2026-04-15T03:05:54+00:00",
+      "engagement_hint": {},
+      "excerpt": "a quiet day lets us reflect on work in the time of AI",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-humanitys-last-gasp"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "Notion\u2019s Token Town: 5 Rebuilds, 100+ Tools, MCP vs CLIs and the Software Factory Future \u2014 Simon Last & Sarah Sachs of Notion",
+      "url": "https://www.latent.space/p/notion",
+      "published_at": "2026-04-15T00:31:14+00:00",
+      "engagement_hint": {},
+      "excerpt": "Notion's cofounder and head of AI peel back the curtains to talk about finally shipping the Knowledge Work AI agents the world has been waiting for.",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/notion"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Top Local Models List - April 2026",
+      "url": "https://www.latent.space/p/ainews-top-local-models-list-april",
+      "published_at": "2026-04-14T08:43:33+00:00",
+      "engagement_hint": {},
+      "excerpt": "a quiet day lets us check in on the local models scene",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-top-local-models-list-april"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] AI Engineer Europe 2026",
+      "url": "https://www.latent.space/p/ainews-ai-engineer-europe-2026",
+      "published_at": "2026-04-10T23:30:58+00:00",
+      "engagement_hint": {},
+      "excerpt": "Two quiet days in a row let us reflect on the first AIE in London.",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-ai-engineer-europe-2026"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Meta Superintelligence Labs announces Muse Spark, first frontier model on their completely new stack",
+      "url": "https://www.latent.space/p/ainews-meta-superintelligence-labs",
+      "published_at": "2026-04-08T23:23:36+00:00",
+      "engagement_hint": {},
+      "excerpt": "a quiet day lets us reflect on MSL finally shipping!",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-meta-superintelligence-labs"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Anthropic @ $30B ARR, Project GlassWing and Claude Mythos Preview \u2014 first model too dangerous to release since GPT-2",
+      "url": "https://www.latent.space/p/ainews-anthropic-30b-arr-project",
+      "published_at": "2026-04-08T00:26:53+00:00",
+      "engagement_hint": {},
+      "excerpt": "Anthropic steps up the offensive vs OpenAI's upcoming IPO woes",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-anthropic-30b-arr-project"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "Extreme Harness Engineering for Token Billionaires: 1M LOC, 1B toks/day, 0% human code, 0% human review \u2014 Ryan Lopopolo, OpenAI Frontier & Symphony",
+      "url": "https://www.latent.space/p/harness-eng",
+      "published_at": "2026-04-07T17:14:26+00:00",
+      "engagement_hint": {},
+      "excerpt": "We shed light on OpenAI's first Dark Factory for the first time.",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/harness-eng"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Gemma 4 crosses 2 million downloads",
+      "url": "https://www.latent.space/p/ainews-gemma-4-crosses-2-million",
+      "published_at": "2026-04-07T00:17:23+00:00",
+      "engagement_hint": {},
+      "excerpt": "a quiet day lets us give due respect to the enormously successful Gemma 4 launch",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-gemma-4-crosses-2-million"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "[AINews] Good Friday",
+      "url": "https://www.latent.space/p/ainews-good-friday",
+      "published_at": "2026-04-03T22:03:37+00:00",
+      "engagement_hint": {},
+      "excerpt": "a quiet day.",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/ainews-good-friday"
+      }
+    },
+    {
+      "source": "rss:https://www.latent.space/feed",
+      "title": "Marc Andreessen introspects on The Death of the Browser, Pi + OpenClaw, and Why \"This Time Is Different\"",
+      "url": "https://www.latent.space/p/pmarca",
+      "published_at": "2026-04-03T16:57:46+00:00",
+      "engagement_hint": {},
+      "excerpt": "The legend needs no intro... if you pardon our pun",
+      "raw_metadata": {
+        "guid": "https://www.latent.space/p/pmarca"
+      }
+    }
+  ],
+  "delivery_result": {
+    "status": "sent",
+    "detail": "Email sent to ogboifavourifeanyichukwu@gmail.com"
+  }
+}

@@ -39,9 +39,6 @@ jobs:
       LCA_SMTP_USE_SSL: ${{ vars.LCA_SMTP_USE_SSL }}
       LCA_EMAIL_FROM: ${{ secrets.LCA_EMAIL_FROM }}
       LCA_EMAIL_TO: ${{ secrets.LCA_EMAIL_TO }}
-      LCA_RSS_FEEDS: ${{ vars.LCA_RSS_FEEDS }}
-      LCA_REDDIT_SUBREDDITS: ${{ vars.LCA_REDDIT_SUBREDDITS }}
-      LCA_YOUTUBE_CHANNEL_IDS: ${{ vars.LCA_YOUTUBE_CHANNEL_IDS }}
       LCA_REVIEW_BASE_URL: https://github.com/${{ github.repository }}/actions/workflows/review_capture.yml
 
     steps:
@@ -64,6 +61,15 @@ jobs:
       - name: Run content agent
         shell: bash
         run: |
+          if [ -n "${{ vars.LCA_RSS_FEEDS }}" ]; then
+            export LCA_RSS_FEEDS="${{ vars.LCA_RSS_FEEDS }}"
+          fi
+          if [ -n "${{ vars.LCA_REDDIT_SUBREDDITS }}" ]; then
+            export LCA_REDDIT_SUBREDDITS="${{ vars.LCA_REDDIT_SUBREDDITS }}"
+          fi
+          if [ -n "${{ vars.LCA_YOUTUBE_CHANNEL_IDS }}" ]; then
+            export LCA_YOUTUBE_CHANNEL_IDS="${{ vars.LCA_YOUTUBE_CHANNEL_IDS }}"
+          fi
           args=()
           if [ -n "${{ inputs.day }}" ]; then
             args+=(--day "${{ inputs.day }}")

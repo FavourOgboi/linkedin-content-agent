@@ -3,8 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+import html
 import json
 from pathlib import Path
+import re
 from typing import Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -53,6 +55,13 @@ def _text(element: ElementTree.Element | None, default: str = "") -> str:
     return "".join(element.itertext()).strip()
 
 
+def _clean_text(value: str) -> str:
+    normalized = html.unescape(value)
+    normalized = re.sub(r"<[^>]+>", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
 def parse_feed_bytes(payload: bytes, *, source_name: str) -> list[Signal]:
     root = ElementTree.fromstring(payload)
     signals: list[Signal] = []
@@ -64,7 +73,7 @@ def parse_feed_bytes(payload: bytes, *, source_name: str) -> list[Signal]:
         for item in channel.findall("item"):
             title = _text(item.find("title"))
             link = _text(item.find("link"))
-            excerpt = _text(item.find("description"))
+            excerpt = _clean_text(_text(item.find("description")))
             if not title or not link:
                 continue
             published = _normalize_date(_text(item.find("pubDate")) or _text(item.find("published")))
@@ -84,7 +93,7 @@ def parse_feed_bytes(payload: bytes, *, source_name: str) -> list[Signal]:
     if root.tag == f"{ATOM_NS}feed":
         for entry in root.findall(f"{ATOM_NS}entry"):
             title = _text(entry.find(f"{ATOM_NS}title"))
-            summary = _text(entry.find(f"{ATOM_NS}summary")) or _text(entry.find(f"{ATOM_NS}content"))
+            summary = _clean_text(_text(entry.find(f"{ATOM_NS}summary")) or _text(entry.find(f"{ATOM_NS}content")))
             link = ""
             for link_node in entry.findall(f"{ATOM_NS}link"):
                 href = link_node.attrib.get("href", "")
@@ -187,9 +196,20 @@ class RedditHotSource(SignalSource):
     def url(self) -> str:
         return f"https://www.reddit.com/r/{self.subreddit}/hot.json?limit={self.limit}"
 
+    @property
+    def rss_url(self) -> str:
+        return f"https://www.reddit.com/r/{self.subreddit}/.rss"
+
     def fetch(self) -> list[Signal]:
-        payload = self.loader(self.url)
-        return parse_reddit_json(payload, subreddit=self.subreddit)[: self.limit]
+        try:
+            payload = self.loader(self.url)
+            return parse_reddit_json(payload, subreddit=self.subreddit)[: self.limit]
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+            fallback_payload = self.loader(self.rss_url)
+            signals = parse_feed_bytes(fallback_payload, source_name=f"reddit:{self.subreddit}")[: self.limit]
+            if not signals:
+                raise ValueError(f"No public Reddit signals found for subreddit '{self.subreddit}'.")
+            return signals
 
 
 class YouTubeChannelFeedSource(SignalSource):
@@ -204,11 +224,14 @@ class YouTubeChannelFeedSource(SignalSource):
 
     def fetch(self) -> list[Signal]:
         payload = self.loader(self.url)
-        return parse_feed_bytes(payload, source_name=f"youtube:{self.channel_id}")[: self.limit]
+        signals = parse_feed_bytes(payload, source_name=f"youtube:{self.channel_id}")[: self.limit]
+        if not signals:
+            raise ValueError(f"No public YouTube uploads found for channel '{self.channel_id}'.")
+        return signals
 
 
 def safe_fetch(source: SignalSource) -> tuple[list[Signal], str | None]:
     try:
         return source.fetch(), None
-    except (HTTPError, URLError, TimeoutError, ElementTree.ParseError, json.JSONDecodeError) as exc:
+    except (HTTPError, URLError, TimeoutError, ElementTree.ParseError, json.JSONDecodeError, ValueError) as exc:
         return [], f"{source.__class__.__name__} failed: {exc}"
