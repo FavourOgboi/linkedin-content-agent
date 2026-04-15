@@ -17,7 +17,11 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         f"- {reference.source}: [{reference.title}]({reference.url})"
         for reference in generated_content.primary.source_refs
     ]
-    review_line = f"Review workflow: {review_url}" if review_url else "Review workflow: trigger review_capture.yml with this run ID."
+    review_line = (
+        f"Review URL: {review_url}"
+        if review_url
+        else f"Review locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
+    )
 
     sections = [
         f"# {summary.day} - {summary.post_type}",
@@ -61,7 +65,10 @@ def render_email_payload(
     *,
     review_url: str | None = None,
 ) -> EmailPayload:
-    review_block = review_url or "Trigger the review_capture workflow and pass this run ID."
+    review_block = (
+        review_url
+        or f"Run locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
+    )
     backup_block = "\n\n".join(
         [
             "\n".join(

@@ -20,7 +20,7 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   run-agent:
@@ -39,7 +39,7 @@ jobs:
       LCA_SMTP_USE_SSL: ${{ vars.LCA_SMTP_USE_SSL }}
       LCA_EMAIL_FROM: ${{ secrets.LCA_EMAIL_FROM }}
       LCA_EMAIL_TO: ${{ secrets.LCA_EMAIL_TO }}
-      LCA_REVIEW_BASE_URL: https://github.com/${{ github.repository }}/actions/workflows/review_capture.yml
+      LCA_REVIEW_BASE_URL: ""
 
     steps:
       - name: Checkout repository
@@ -81,25 +81,3 @@ jobs:
             args+=(--skip-email)
           fi
           python -m linkedin_content_agent.cli run "${args[@]}"
-
-      - name: Upload SQLite cache artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: content-agent-cache-${{ github.run_id }}
-          path: data/artifacts/content_agent_cache.db
-          if-no-files-found: warn
-
-      - name: Commit archived outputs
-        if: always()
-        shell: bash
-        run: |
-          if git diff --quiet -- data; then
-            echo "No data changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
-          git commit -m "chore: archive content agent run"
-          git push

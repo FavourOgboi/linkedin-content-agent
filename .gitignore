@@ -14,6 +14,11 @@ build/
 dist/
 *.egg-info/
 
-data/artifacts/*.db
-data/artifacts/*.sqlite
-data/artifacts/*.sqlite3
+data/history/*
+!data/history/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+data/prompts/*
+!data/prompts/.gitkeep
+data/artifacts/*
+!data/artifacts/.gitkeep

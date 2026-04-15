@@ -1,6 +1,6 @@
 # LinkedIn Content Agent V1
 
-This project generates one day-specific LinkedIn post package plus two backup ideas from public AI/data signals, then archives the run and emails it for human review.
+This project generates one day-specific LinkedIn post package plus two backup ideas from public AI/data signals, then archives the run locally and emails it for human review.
 
 ## What It Does
 
@@ -9,7 +9,7 @@ This project generates one day-specific LinkedIn post package plus two backup id
 - Uses the OpenAI Responses API with structured JSON outputs
 - Runs deterministic and model-based anti-generic checks
 - Archives every run to JSONL, Markdown, JSON, and a rebuildable SQLite cache
-- Captures review decisions through a dedicated CLI command and GitHub Actions workflow
+- Captures review decisions through a dedicated CLI command
 
 ## Quick Start
 
@@ -94,7 +94,7 @@ Record your review decision after a run:
 python -m linkedin_content_agent.cli review --run-id 20260415-070000-monday --decision approved --notes "Good hook. Keep this angle."
 ```
 
-Artifacts are written to:
+Artifacts are written locally to:
 
 - `data/outputs/` for generated JSON and Markdown
 - `data/prompts/` for saved prompt/context payloads
@@ -107,6 +107,11 @@ GitHub Actions workflow files are included under `.github/workflows/`. They expe
 
 - OpenAI credentials in repository secrets
 - SMTP settings in repository secrets
-- `contents: write` permission so the workflows can commit updated history files back to the repository
 
-The runtime SQLite database is treated as a rebuildable cache and uploaded as a workflow artifact after each run. Human-readable history lives in `data/history/`.
+In the current public-repo-safe setup, the scheduled workflow sends the email but does not commit generated runs, prompts, review history, or SQLite cache back into the repository. Local runs still write those files under `data/`, but they are gitignored so they stay out of the public repo.
+
+If you want review records, use the local CLI command after a run:
+
+```bash
+python -m linkedin_content_agent.cli review --run-id RUN_ID --decision approved --notes "Good hook. Keep this angle."
+```
