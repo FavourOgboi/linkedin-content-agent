@@ -9,8 +9,21 @@ if str(SRC) not in sys.path:
 import unittest
 
 from linkedin_content_agent.day_contracts import resolve_day_contract
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, OriginalityAudit, PostPackage, ScoreBreakdown, SelfAudit, SourceReference, TopicCandidate
-from linkedin_content_agent.validation import validate_generated_content, validate_originality
+from linkedin_content_agent.models import (
+    BackupIdea,
+    DossierSource,
+    GeneratedContent,
+    OriginalityAudit,
+    PostPackage,
+    ScoreBreakdown,
+    SelfAudit,
+    SourceReference,
+    TopicCandidate,
+    TopicContext,
+    TopicDossier,
+    TruthProfile,
+)
+from linkedin_content_agent.validation import validate_generated_content, validate_originality, validate_truth_alignment
 
 
 class ValidationTests(unittest.TestCase):
@@ -18,22 +31,23 @@ class ValidationTests(unittest.TestCase):
         primary = PostPackage(
             day="Monday",
             post_type="Build / Experiment",
-            hook="I thought the LLM cleaning pass would remove edge cases. It exposed new ones instead.",
+            hook="A recent benchmark suggests the workflow boundary matters more than the model headline.",
             core_idea=[
-                "The first pass broke when schema drift hit nested records.",
-                "The surprising result was that retrieval cues mattered more than prompt length.",
-                "The lesson: treat cleanup as a pipeline tradeoff, not a one-shot prompt.",
+                "What people get wrong is assuming the benchmark headline transfers cleanly into every workflow.",
+                "The deeper mechanism is conversational bias leaking into tool contract adherence.",
+                "The lesson: treat cleanup as a pipeline tradeoff, not a universal model verdict.",
             ],
             draft_post=(
-                "I tried using an LLM to clean a messy support dataset.\n"
-                "What broke was the schema assumption around nested fields.\n"
-                "The surprising result: shorter prompts plus retrieval context beat the longer baseline.\n"
+                "A recent benchmark suggests the workflow boundary matters more than the model headline.\n"
+                "Across a few sources, the fragile boundary is the tool contract rather than the top-line score.\n"
+                "What broke first was schema drift at the tool boundary.\n"
+                "Unexpected result: setup details mattered more than the benchmark headline.\n"
                 "Lesson learned: the real tradeoff is control versus speed."
             ),
             visual_suggestion="Before/after screenshot of the dataset plus one failed row example.",
-            why_this_works="It anchors the post in a concrete LLM workflow mistake and a clear lesson.",
+            why_this_works="It anchors the post in a concrete workflow mistake while making the provenance explicit.",
             source_refs=[SourceReference(source="reddit:MachineLearning", title="Test source", url="https://example.com")],
-            self_audit=SelfAudit(passed_checks=["Contains a mistake, result, and lesson."], critic_notes=[]),
+            self_audit=SelfAudit(passed_checks=["Contains provenance, a failure point, and a lesson."], critic_notes=[]),
         )
         backups = [
             BackupIdea(
@@ -51,7 +65,7 @@ class ValidationTests(unittest.TestCase):
                 visual_suggestion="Prompt A vs Prompt B comparison.",
             ),
         ]
-        return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Strong builder signal.")
+        return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Strong analyst signal.")
 
     def _source_candidate(self, title: str = "These Opus fine-tunes are a downgrade") -> TopicCandidate:
         return TopicCandidate(
@@ -71,6 +85,71 @@ class ValidationTests(unittest.TestCase):
             novelty_penalty=0.0,
             supporting_signals=[SourceReference(source="reddit:LocalLLaMA", title=title, url="https://example.com/source")],
         )
+
+    def _topic_context(
+        self,
+        *,
+        authority_mode: str = "applied_analyst",
+        source_ownership: str = "second_hand",
+        evidence_strength: str = "medium",
+        risk_level: str = "medium",
+        conflict_level: str = "low",
+        weak_signal_echo: bool = False,
+        source_count: int = 2,
+        stronger_source_present: bool = True,
+    ) -> TopicContext:
+        candidate = self._source_candidate()
+        dossier_sources = [
+            DossierSource(
+                reference=SourceReference(source="reddit:LocalLLaMA", title=candidate.title, url="https://example.com/source"),
+                source_quality="discussion",
+                evidence_type="discussion",
+                claim=candidate.title,
+                confidence="weak",
+            )
+        ]
+        if stronger_source_present:
+            dossier_sources.append(
+                DossierSource(
+                    reference=SourceReference(
+                        source="rss:blog",
+                        title="Protocol adherence is the hidden eval boundary",
+                        url="https://github.com/example/protocol-eval",
+                    ),
+                    source_quality="reproducible",
+                    evidence_type="repo",
+                    claim="A repo-backed evaluation points to protocol adherence instead of a simple downgrade claim.",
+                    confidence="strong",
+                )
+            )
+
+        dossier = TopicDossier(
+            topic_title=candidate.title,
+            primary_signal=candidate.supporting_signals[0],
+            sources=dossier_sources[:source_count],
+            source_count=source_count,
+            claim_summaries=[source.claim for source in dossier_sources[:source_count]],
+            consensus_summary="The stable angle is the workflow mechanism rather than the headline claim.",
+            disagreement_notes=["The sources do not fully agree on the mechanism."] if conflict_level == "high" else [],
+            stronger_source_present=stronger_source_present,
+            weak_signal_echo=weak_signal_echo,
+        )
+        truth_profile = TruthProfile(
+            source_ownership=source_ownership,
+            evidence_strength=evidence_strength,
+            risk_level=risk_level,
+            authority_mode=authority_mode,
+            position="refine",
+            conflict_level=conflict_level,
+            provenance_rule="Attribute the claim to external sources in the opening lines.",
+            allowed_claim_posture="Be bold and technical, but interpret the evidence rather than impersonating the original experiment.",
+            required_copy_moves=["State provenance in the hook or first two lines."],
+            forbidden_moves=["Do not present external experiments as your own."],
+            allows_first_person_experiment=source_ownership in {"first_hand", "mixed"},
+            requires_explicit_provenance=source_ownership in {"second_hand", "mixed"} or authority_mode in {"amplifier", "exploratory"},
+            allows_exact_metrics=source_ownership in {"first_hand", "mixed"} or stronger_source_present,
+        )
+        return TopicContext(candidate=candidate, dossier=dossier, truth_profile=truth_profile)
 
     def test_valid_monday_content_passes(self) -> None:
         content = self._valid_monday_content()
@@ -123,6 +202,50 @@ class ValidationTests(unittest.TestCase):
         )
         issues = validate_originality(content, self._source_candidate(), audit)
         self.assertEqual(issues, [])
+
+    def test_truth_rejects_first_hand_language_on_second_hand_post(self) -> None:
+        content = self._valid_monday_content()
+        content.primary.draft_post = (
+            "I tested the benchmark claim myself.\n"
+            "What broke for me was the tool contract.\n"
+            "Unexpected result: the refusal rate jumped.\n"
+            "Lesson learned: the benchmark was right."
+        )
+        issues = validate_truth_alignment(content, resolve_day_contract("Monday"), self._topic_context())
+        self.assertTrue(any("first-person experiment language" in issue.lower() for issue in issues))
+
+    def test_truth_passes_applied_analyst_with_explicit_provenance(self) -> None:
+        content = self._valid_monday_content()
+        issues = validate_truth_alignment(content, resolve_day_contract("Monday"), self._topic_context())
+        self.assertEqual(issues, [])
+
+    def test_truth_rejects_unsupported_metrics(self) -> None:
+        content = self._valid_monday_content()
+        content.primary.draft_post += "\nThe refusal rate rose by 42%."
+        topic_context = self._topic_context(stronger_source_present=False, evidence_strength="weak", risk_level="high")
+        topic_context.truth_profile.allows_exact_metrics = False
+        issues = validate_truth_alignment(content, resolve_day_contract("Monday"), topic_context)
+        self.assertTrue(any("exact metrics" in issue.lower() for issue in issues))
+
+    def test_truth_rejects_unknown_model_version(self) -> None:
+        content = self._valid_monday_content()
+        content.primary.draft_post += "\nClaude-4.6 Opus was the model in question."
+        issues = validate_truth_alignment(content, resolve_day_contract("Monday"), self._topic_context())
+        self.assertTrue(any("model names or versions" in issue.lower() for issue in issues))
+
+    def test_truth_rejects_echo_chamber_without_stronger_source(self) -> None:
+        content = self._valid_monday_content()
+        topic_context = self._topic_context(
+            authority_mode="exploratory",
+            evidence_strength="weak",
+            risk_level="high",
+            conflict_level="high",
+            weak_signal_echo=True,
+            source_count=3,
+            stronger_source_present=False,
+        )
+        issues = validate_truth_alignment(content, resolve_day_contract("Monday"), topic_context)
+        self.assertTrue(any("echoing low-quality sources" in issue.lower() for issue in issues))
 
 
 if __name__ == "__main__":

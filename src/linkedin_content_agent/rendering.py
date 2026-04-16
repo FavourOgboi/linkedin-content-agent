@@ -34,6 +34,22 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
             f"- Decision: {generated_content.originality_audit.decision}",
             "",
         ]
+    credibility_lines: list[str] = []
+    if generated_content.truth_profile is not None and generated_content.topic_dossier is not None:
+        credibility_lines = [
+            "## Credibility Review",
+            f"- Authority mode: {generated_content.truth_profile.authority_mode}",
+            f"- Source ownership: {generated_content.truth_profile.source_ownership}",
+            f"- Evidence strength: {generated_content.truth_profile.evidence_strength}",
+            f"- Risk level: {generated_content.truth_profile.risk_level}",
+            f"- Conflict level: {generated_content.truth_profile.conflict_level}",
+            f"- Allowed posture: {generated_content.truth_profile.allowed_claim_posture}",
+            f"- Provenance rule: {generated_content.truth_profile.provenance_rule}",
+            f"- Dossier summary: {generated_content.topic_dossier.consensus_summary}",
+            *[f"- Dossier note: {note}" for note in generated_content.topic_dossier.disagreement_notes],
+            *[f"- Claim summary: {item}" for item in generated_content.topic_dossier.claim_summaries],
+            "",
+        ]
 
     sections = [
         f"# {summary.day} - {summary.post_type}",
@@ -65,6 +81,7 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         *[f"- Passed: {item}" for item in generated_content.primary.self_audit.passed_checks],
         *[f"- Note: {item}" for item in generated_content.primary.self_audit.critic_notes],
         "",
+        *credibility_lines,
         *originality_lines,
         *backup_lines,
     ]
@@ -93,6 +110,21 @@ def render_email_payload(
             f"New insight: {generated_content.originality_audit.new_mechanism_or_insight}",
             f"Originality score: {generated_content.originality_audit.originality_score}",
             f"Decision: {generated_content.originality_audit.decision}",
+        ]
+    credibility_block = []
+    if generated_content.truth_profile is not None and generated_content.topic_dossier is not None:
+        credibility_block = [
+            "",
+            "CREDIBILITY REVIEW",
+            f"Authority mode: {generated_content.truth_profile.authority_mode}",
+            f"Source ownership: {generated_content.truth_profile.source_ownership}",
+            f"Evidence strength: {generated_content.truth_profile.evidence_strength}",
+            f"Risk level: {generated_content.truth_profile.risk_level}",
+            f"Conflict level: {generated_content.truth_profile.conflict_level}",
+            f"Allowed posture: {generated_content.truth_profile.allowed_claim_posture}",
+            f"Provenance rule: {generated_content.truth_profile.provenance_rule}",
+            f"Dossier summary: {generated_content.topic_dossier.consensus_summary}",
+            *[f"Dossier note: {note}" for note in generated_content.topic_dossier.disagreement_notes],
         ]
     backup_block = "\n\n".join(
         [
@@ -130,6 +162,7 @@ def render_email_payload(
             "",
             "WHY THIS WORKS",
             generated_content.primary.why_this_works,
+            *credibility_block,
             *originality_block,
             "",
             "BACKUP IDEAS",

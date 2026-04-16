@@ -4,7 +4,7 @@ from difflib import SequenceMatcher
 import re
 
 from linkedin_content_agent.day_contracts import DayContract
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, OriginalityAudit, PostPackage, TopicCandidate
+from linkedin_content_agent.models import BackupIdea, GeneratedContent, OriginalityAudit, PostPackage, TopicCandidate, TopicContext
 
 
 HYPE_PATTERNS = (
@@ -70,6 +70,76 @@ DEEP_MECHANISM_MARKERS = (
 
 EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]")
 TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
+METRIC_RE = re.compile(
+    r"(\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?x\b|\b\d+(?:\.\d+)?\s?(?:ms|s|sec|secs|seconds|minutes|tokens?)\b)",
+    re.IGNORECASE,
+)
+MODEL_NAME_RE = re.compile(r"\b(?:gpt|claude|gemini|llama|mistral|o\d+)[- ]?[a-z0-9\.]+\b", re.IGNORECASE)
+
+FIRST_PERSON_EXPERIMENT_PATTERNS = (
+    "i tested",
+    "i ran",
+    "in my run",
+    "i built",
+    "what broke for me",
+    "i expected",
+    "i tried using",
+    "my experiment",
+)
+
+PROVENANCE_PATTERNS = (
+    "a recent benchmark",
+    "a recent experiment",
+    "a recent repo",
+    "a recent writeup",
+    "an external experiment",
+    "a benchmark suggests",
+    "across a few sources",
+    "across a few discussions",
+    "according to",
+    "i came across",
+    "worth testing",
+    "i tried to replicate",
+    "a recent github experiment",
+)
+
+HEDGE_PATTERNS = (
+    "suggests",
+    "may",
+    "might",
+    "can",
+    "seems",
+    "appears",
+    "in some setups",
+    "in one benchmark",
+    "across a few examples",
+    "setup-dependent",
+    "not universal",
+    "worth testing",
+)
+
+UNIVERSAL_PATTERNS = (
+    "always",
+    "never",
+    "every",
+    "everyone",
+    "nobody",
+    "100%",
+    "guarantees",
+    "proves",
+    "all teams",
+    "all models",
+)
+
+CAUSAL_PATTERNS = (
+    "causes",
+    "caused",
+    "turned",
+    "makes",
+    "breaks",
+    "shows that",
+    "means that",
+)
 
 
 def _collect_text(post: PostPackage) -> str:
@@ -225,6 +295,71 @@ def validate_originality(
         issues.append("Originality audit rejected the draft.")
     if not audit.new_mechanism_or_insight.strip():
         issues.append("Originality audit did not provide a new mechanism or insight.")
+
+    return issues
+
+
+def _model_mentions(text: str) -> set[str]:
+    return {match.group(0).lower() for match in MODEL_NAME_RE.finditer(text)}
+
+
+def validate_truth_alignment(
+    generated_content: GeneratedContent,
+    contract: DayContract,
+    topic_context: TopicContext,
+) -> list[str]:
+    issues: list[str] = []
+    post = generated_content.primary
+    combined = _collect_text(post)
+    truth_profile = topic_context.truth_profile
+    dossier = topic_context.dossier
+    source_claim_text = " ".join(dossier.claim_summaries).lower()
+
+    if truth_profile.source_ownership in {"second_hand", "general_knowledge"}:
+        if _contains_any(combined, FIRST_PERSON_EXPERIMENT_PATTERNS):
+            issues.append("Draft uses first-person experiment language without first-hand evidence.")
+
+    if truth_profile.requires_explicit_provenance and not _contains_any(combined, PROVENANCE_PATTERNS):
+        issues.append("Draft does not make source provenance explicit enough for the assigned authority mode.")
+
+    if not truth_profile.allows_exact_metrics and METRIC_RE.search(combined):
+        issues.append("Draft includes exact metrics without dossier support.")
+
+    if dossier.weak_signal_echo and dossier.source_count >= 3:
+        issues.append("Topic relies on echoing low-quality sources without stronger technical support.")
+
+    if truth_profile.authority_mode == "exploratory":
+        exploratory_markers = ("?", "worth testing", "i tried to replicate", "open question", "still testing", "not convinced")
+        if not any(marker in combined for marker in exploratory_markers):
+            issues.append("Exploratory posts must signal uncertainty, replication, or open scope.")
+
+    if truth_profile.authority_mode == "light":
+        high_risk_terms = ("benchmark", "bias", "politic", "safety", "security", "refusal")
+        if any(term in combined for term in high_risk_terms):
+            issues.append("Light posts cannot carry high-risk benchmark, safety, or political claims.")
+
+    if contract.day in {"Monday", "Sunday"} and truth_profile.authority_mode != "builder" and _contains_any(
+        combined,
+        FIRST_PERSON_EXPERIMENT_PATTERNS,
+    ):
+        issues.append("This day was downgraded from Builder authority, so the draft cannot sound first-hand.")
+
+    if truth_profile.risk_level == "high" or truth_profile.evidence_strength == "weak" or truth_profile.conflict_level == "high":
+        if (_contains_any(combined, UNIVERSAL_PATTERNS) or _contains_any(combined, CAUSAL_PATTERNS)) and not _contains_any(
+            combined,
+            HEDGE_PATTERNS,
+        ):
+            issues.append("High-risk or weak-evidence drafts need hedging or scope limits before making causal or universal claims.")
+
+    mentioned_models = _model_mentions(combined)
+    allowed_models = _model_mentions(source_claim_text)
+    unknown_models = mentioned_models - allowed_models
+    if unknown_models:
+        issues.append("Draft references model names or versions not present in the supporting dossier.")
+
+    if truth_profile.authority_mode == "applied_analyst" and truth_profile.source_ownership == "second_hand":
+        if "i tested" in combined or "i built" in combined:
+            issues.append("Applied analyst mode cannot imply the creator personally ran the underlying experiment.")
 
     return issues
 

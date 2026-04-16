@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from linkedin_content_agent.config import AppConfig
 from linkedin_content_agent.day_contracts import DayContract
 from linkedin_content_agent.json_schemas import AUDIT_RESULT_SCHEMA, GENERATION_PAYLOAD_SCHEMA, ORIGINALITY_AUDIT_SCHEMA, TOPIC_SELECTION_SCHEMA
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, ModelAuditResult, OriginalityAudit, PostPackage, SelfAudit, SourceReference, TopicCandidate, TopicSelection
+from linkedin_content_agent.models import BackupIdea, GeneratedContent, ModelAuditResult, OriginalityAudit, PostPackage, SelfAudit, SourceReference, TopicContext, TopicSelection
 
 
 CONTENT_SYSTEM_PROMPT = """
@@ -32,7 +32,7 @@ Rules:
 
 
 class ContentModel(Protocol):
-    def choose_topic(self, contract: DayContract, candidates: list[TopicCandidate], topic_override: str | None = None) -> TopicSelection:
+    def choose_topic(self, contract: DayContract, topic_contexts: list[TopicContext], topic_override: str | None = None) -> TopicSelection:
         raise NotImplementedError
 
     def generate_content(
@@ -40,7 +40,8 @@ class ContentModel(Protocol):
         *,
         contract: DayContract,
         selection: TopicSelection,
-        candidates: list[TopicCandidate],
+        topic_context: TopicContext,
+        reference_contexts: list[TopicContext],
         creator_context: str,
         revision_feedback: str | None = None,
     ) -> GeneratedContent:
@@ -50,6 +51,7 @@ class ContentModel(Protocol):
         self,
         *,
         contract: DayContract,
+        topic_context: TopicContext,
         generated_content: GeneratedContent,
         deterministic_issues: list[str],
     ) -> ModelAuditResult:
@@ -60,7 +62,7 @@ class ContentModel(Protocol):
         *,
         contract: DayContract,
         selection: TopicSelection,
-        candidate: TopicCandidate,
+        topic_context: TopicContext,
         generated_content: GeneratedContent,
     ) -> OriginalityAudit:
         raise NotImplementedError
@@ -123,16 +125,16 @@ class OpenAIContentModel:
             raise RuntimeError("OpenAI response did not contain output text.")
         return json.loads(output_text)
 
-    def choose_topic(self, contract: DayContract, candidates: list[TopicCandidate], topic_override: str | None = None) -> TopicSelection:
+    def choose_topic(self, contract: DayContract, topic_contexts: list[TopicContext], topic_override: str | None = None) -> TopicSelection:
         if topic_override:
-            backups = [candidate.title for candidate in candidates if candidate.title != topic_override][:2]
+            backups = [context.candidate.title for context in topic_contexts if context.candidate.title != topic_override][:2]
             return TopicSelection(
                 selected_title=topic_override.strip(),
                 selected_reason="Manual topic override supplied by the operator.",
                 backup_titles=backups,
                 caution_notes=[],
             )
-        if not candidates:
+        if not topic_contexts:
             raise RuntimeError("No candidates available for topic selection.")
 
         prompt = "\n".join(
@@ -142,9 +144,10 @@ class OpenAIContentModel:
                 f"Requirements: {', '.join(contract.requirements)}",
                 "",
                 "Select the strongest topic for authority building and nominate two backups.",
-                "The answer must prefer topics that feel practical, slightly opinionated, and grounded in real scenarios.",
+                "Prefer topics with defensible evidence, useful disagreement, and an honest authority mode.",
+                "Do not prefer a topic just because the headline sounds dramatic.",
                 "",
-                json.dumps([asdict(candidate) for candidate in candidates[:8]], indent=2),
+                json.dumps([asdict(context) for context in topic_contexts[:8]], indent=2),
             ]
         )
         try:
@@ -158,9 +161,9 @@ class OpenAIContentModel:
             return TopicSelection(**payload)
         except Exception:
             return TopicSelection(
-                selected_title=candidates[0].title,
+                selected_title=topic_contexts[0].candidate.title,
                 selected_reason="Fell back to the highest-scoring deterministic candidate.",
-                backup_titles=[candidate.title for candidate in candidates[1:3]],
+                backup_titles=[context.candidate.title for context in topic_contexts[1:3]],
                 caution_notes=["Topic selection model call failed; deterministic fallback used."],
             )
 
@@ -169,7 +172,8 @@ class OpenAIContentModel:
         *,
         contract: DayContract,
         selection: TopicSelection,
-        candidates: list[TopicCandidate],
+        topic_context: TopicContext,
+        reference_contexts: list[TopicContext],
         creator_context: str,
         revision_feedback: str | None = None,
     ) -> GeneratedContent:
@@ -182,14 +186,25 @@ class OpenAIContentModel:
             f"Selected topic: {selection.selected_title}",
             f"Why selected: {selection.selected_reason}",
             "",
-            "Reference candidates:",
-            json.dumps([asdict(candidate) for candidate in candidates[:5]], indent=2),
+            "Selected topic dossier:",
+            json.dumps(asdict(topic_context.dossier), indent=2),
+            "",
+            "Truth profile:",
+            json.dumps(asdict(topic_context.truth_profile), indent=2),
+            "",
+            "Reference topic contexts:",
+            json.dumps([asdict(context) for context in reference_contexts[:5]], indent=2),
             "",
             "Return one primary post package and exactly two backup ideas.",
             "The primary post must use the exact output structure. It must not sound motivational or generic.",
+            f"Authority mode for this post: {topic_context.truth_profile.authority_mode}.",
+            f"Allowed claim posture: {topic_context.truth_profile.allowed_claim_posture}",
+            f"Provenance rule: {topic_context.truth_profile.provenance_rule}",
             "Do not reuse the same headline framing as the source signal.",
             "Do not restate the source conclusion directly.",
             "You must add a deeper mechanism, contradiction, or applied system explanation that makes the idea feel owned rather than aggregated.",
+            "Never present an external experiment as if the creator ran it.",
+            "If explicit provenance is required, make that clear in the hook or first two lines.",
         ]
         if revision_feedback:
             prompt_parts.extend(
@@ -225,6 +240,8 @@ class OpenAIContentModel:
             primary=primary,
             backups=backups,
             selected_topic_reason=payload["selected_topic_reason"],
+            topic_dossier=topic_context.dossier,
+            truth_profile=topic_context.truth_profile,
         )
 
     def assess_originality(
@@ -232,7 +249,7 @@ class OpenAIContentModel:
         *,
         contract: DayContract,
         selection: TopicSelection,
-        candidate: TopicCandidate,
+        topic_context: TopicContext,
         generated_content: GeneratedContent,
     ) -> OriginalityAudit:
         prompt = "\n".join(
@@ -245,8 +262,8 @@ class OpenAIContentModel:
                 f"Selected topic: {selection.selected_title}",
                 f"Selection reason: {selection.selected_reason}",
                 "",
-                "Candidate and source evidence:",
-                json.dumps(asdict(candidate), indent=2),
+                "Topic context and source evidence:",
+                json.dumps(asdict(topic_context), indent=2),
                 "",
                 "Generated draft:",
                 json.dumps(asdict(generated_content), indent=2),
@@ -265,6 +282,7 @@ class OpenAIContentModel:
         self,
         *,
         contract: DayContract,
+        topic_context: TopicContext,
         generated_content: GeneratedContent,
         deterministic_issues: list[str],
     ) -> ModelAuditResult:
@@ -273,6 +291,10 @@ class OpenAIContentModel:
                 f"Audit this {contract.day} / {contract.post_type} content package.",
                 "Fail it if it sounds generic, beginner-level, or AI-obvious.",
                 "Fail it if it does not genuinely satisfy the contract.",
+                "Fail it if it violates the assigned authority mode, provenance rule, or claim posture.",
+                "",
+                "Topic context:",
+                json.dumps(asdict(topic_context), indent=2),
                 "",
                 "Deterministic issues already found:",
                 json.dumps(deterministic_issues, indent=2),

@@ -13,32 +13,78 @@ from urllib.error import URLError
 from uuid import uuid4
 
 from linkedin_content_agent.config import AppConfig, SMTPConfig
-from linkedin_content_agent.models import BackupIdea, DeliveryResult, GeneratedContent, ModelAuditResult, OriginalityAudit, PostPackage, RunOptions, SelfAudit, Signal, SourceReference, TopicSelection
+from linkedin_content_agent.models import (
+    BackupIdea,
+    DeliveryResult,
+    GeneratedContent,
+    ModelAuditResult,
+    OriginalityAudit,
+    PostPackage,
+    RunOptions,
+    SelfAudit,
+    Signal,
+    SourceReference,
+    TopicSelection,
+)
 from linkedin_content_agent.pipeline import ContentAgent, record_review
 from linkedin_content_agent.storage import LocalHybridStorage
 from linkedin_content_agent.utils import load_json
 
 
-def build_generated_content(contract, selection, *, hook: str, mechanism: str) -> GeneratedContent:
+def build_generated_content(
+    contract,
+    selection,
+    *,
+    hook: str,
+    mechanism: str,
+    opening_line: str = "A recent benchmark suggests the model quality is not the main failure point here.",
+    include_metrics: bool = False,
+    model_name: str | None = None,
+) -> GeneratedContent:
+    metric_line = "In one setup, refusal rate rose by 42%." if include_metrics else "That claim is still worth testing in your own setup."
+    model_line = f"{model_name} was the headline in the discussion." if model_name else "The setup details matter more than the headline."
+    core_idea = [
+        "What people get wrong is assuming the benchmark headline transfers cleanly into every workflow.",
+        f"The deeper mechanism is that {mechanism}",
+        "The lesson is to treat the finding as a system-level pattern, not a universal fact.",
+    ]
+    draft_post = (
+        f"{opening_line}\n"
+        "Across a few sources, the fragile boundary is the tool contract rather than the top-line model score.\n"
+        f"What broke first was the workflow boundary: {mechanism}\n"
+        f"Unexpected result: {metric_line}\n"
+        f"Lesson learned: {model_line}"
+    )
+    why_this_works = "It explains the system mechanism and makes the provenance explicit instead of polishing a borrowed claim."
+
+    if contract.day == "Thursday":
+        core_idea = [
+            "What people get wrong is treating the headline as the change instead of the workflow implication.",
+            f"What this actually changes is that {mechanism}",
+            "Implication and insight: teams need to evaluate the workflow boundary, not just the model claim.",
+        ]
+        draft_post = (
+            f"{opening_line}\n"
+            "Across a few sources, the fragile boundary is the tool contract rather than the top-line model score.\n"
+            f"What this actually changes is that {mechanism}\n"
+            f"Implication: {metric_line}\n"
+            f"That means the setup details matter more than the headline: {model_line}"
+        )
+        why_this_works = "It interprets the trend and tells the reader what changes in practice."
+
     primary = PostPackage(
         day=contract.day,
         post_type=contract.post_type,
         hook=hook,
-        core_idea=[
-            "What broke first was the workflow boundary between the model output and the tool contract.",
-            f"Unexpected result: {mechanism}",
-            "Lesson learned: the tradeoff is slower setup for more reliable agent behavior.",
-        ],
-        draft_post=(
-            "I expected the model quality to be the issue.\n"
-            "What broke was the workflow boundary between the model output and the tool contract.\n"
-            f"Unexpected result: {mechanism}\n"
-            "Lesson learned: the tradeoff is slower setup for more reliable agent behavior."
-        ),
+        core_idea=core_idea,
+        draft_post=draft_post,
         visual_suggestion="Screenshot of the failing tool call beside the corrected workflow step.",
-        why_this_works="It explains the system mechanism rather than polishing the source claim.",
+        why_this_works=why_this_works,
         source_refs=[SourceReference(source="reddit:MachineLearning", title=selection.selected_title, url="https://example.com/topic")],
-        self_audit=SelfAudit(passed_checks=["Mentions what broke, an unexpected result, and a lesson."], critic_notes=[]),
+        self_audit=SelfAudit(
+            passed_checks=["Contains provenance, a failure point, and a lesson."],
+            critic_notes=[],
+        ),
     )
     backups = [
         BackupIdea(
@@ -51,12 +97,12 @@ def build_generated_content(contract, selection, *, hook: str, mechanism: str) -
         BackupIdea(
             title="Why agent bugs hide in the handoff, not the model",
             angle="Mistake pattern",
-            hook="I blamed the model first. The interface was the real issue.",
+            hook="The interface is often the real issue, not the model headline.",
             why_now="Teams are spending more time debugging multi-step AI workflows.",
             visual_suggestion="Simple workflow diagram with the failing boundary highlighted.",
         ),
     ]
-    return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Builder-oriented topic with clear evidence.")
+    return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Chosen for strong multi-source relevance.")
 
 
 class FakeSource:
@@ -73,9 +119,9 @@ class FailingSource:
 
 
 class PassingModel:
-    def choose_topic(self, contract, candidates, topic_override=None):
-        selected = topic_override or candidates[0].title
-        backups = [candidate.title for candidate in candidates[1:3]]
+    def choose_topic(self, contract, topic_contexts, topic_override=None):
+        selected = topic_override or topic_contexts[0].candidate.title
+        backups = [context.candidate.title for context in topic_contexts[1:3]]
         return TopicSelection(
             selected_title=selected,
             selected_reason="Chosen for strong evidence.",
@@ -83,21 +129,21 @@ class PassingModel:
             caution_notes=[],
         )
 
-    def generate_content(self, *, contract, selection, candidates, creator_context, revision_feedback=None):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         return build_generated_content(
             contract,
             selection,
             hook="Most agent failures look like model problems until you inspect the workflow boundary.",
-            mechanism="The deeper mechanism is that protocol checks fail when conversational priors leak into the tool contract.",
+            mechanism="protocol checks fail when conversational priors leak into the tool contract",
         )
 
-    def audit_content(self, *, contract, generated_content, deterministic_issues):
-        return ModelAuditResult(passed=not deterministic_issues, reasons=[], revision_instructions="Tighten the builder insight.")
+    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+        return ModelAuditResult(passed=not deterministic_issues, reasons=[], revision_instructions="Tighten the systems framing.")
 
-    def assess_originality(self, *, contract, selection, candidate, generated_content):
+    def assess_originality(self, *, contract, selection, topic_context, generated_content):
         return OriginalityAudit(
-            source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-            core_claim_from_source=candidate.title,
+            source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+            core_claim_from_source=topic_context.candidate.title,
             transformation_type="deepened",
             new_mechanism_or_insight="The draft explains why protocol adherence breaks at the workflow boundary.",
             originality_score=8.4,
@@ -109,35 +155,35 @@ class ReframeThenPassModel(PassingModel):
     def __init__(self):
         self.generate_calls: list[str | None] = []
 
-    def generate_content(self, *, contract, selection, candidates, creator_context, revision_feedback=None):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         self.generate_calls.append(revision_feedback)
-        if revision_feedback:
+        if revision_feedback and "originality" in revision_feedback.lower():
             return build_generated_content(
                 contract,
                 selection,
                 hook="The real problem with Opus-style fine-tunes is protocol breakage, not intelligence.",
-                mechanism="The deeper mechanism is that chat-optimized tuning degrades tool contract adherence in agent workflows.",
+                mechanism="chat-optimized tuning degrades tool contract adherence in agent workflows",
             )
         return build_generated_content(
             contract,
             selection,
             hook=selection.selected_title,
-            mechanism="The model feels worse than expected.",
+            mechanism="the model feels worse than expected",
         )
 
-    def assess_originality(self, *, contract, selection, candidate, generated_content):
+    def assess_originality(self, *, contract, selection, topic_context, generated_content):
         if generated_content.primary.hook == selection.selected_title:
             return OriginalityAudit(
-                source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-                core_claim_from_source=candidate.title,
+                source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+                core_claim_from_source=topic_context.candidate.title,
                 transformation_type="deepened",
                 new_mechanism_or_insight="Explain why tool protocol adherence fails instead of repeating the downgrade claim.",
                 originality_score=4.2,
                 decision="reject",
             )
         return OriginalityAudit(
-            source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-            core_claim_from_source=candidate.title,
+            source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+            core_claim_from_source=topic_context.candidate.title,
             transformation_type="deepened",
             new_mechanism_or_insight="The draft reframes the problem around protocol adherence.",
             originality_score=8.3,
@@ -151,66 +197,109 @@ class FallbackToNextCandidateModel(PassingModel):
         self.rejected_title: str | None = None
         self.approved_title: str | None = None
 
-    def choose_topic(self, contract, candidates, topic_override=None):
-        selection = super().choose_topic(contract, candidates, topic_override)
+    def choose_topic(self, contract, topic_contexts, topic_override=None):
+        selection = super().choose_topic(contract, topic_contexts, topic_override)
         self.rejected_title = selection.selected_title
-        remaining = [candidate.title for candidate in candidates if candidate.title != selection.selected_title]
+        remaining = [context.candidate.title for context in topic_contexts if context.candidate.title != selection.selected_title]
         self.approved_title = remaining[0] if remaining else None
         return selection
 
-    def generate_content(self, *, contract, selection, candidates, creator_context, revision_feedback=None):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         self.attempted_titles.append(selection.selected_title)
         if selection.selected_title == self.rejected_title:
             return build_generated_content(
                 contract,
                 selection,
                 hook=selection.selected_title,
-                mechanism="It feels worse in chat than the base model.",
+                mechanism="it feels worse in chat than the base model",
             )
         return build_generated_content(
             contract,
             selection,
             hook="Why chat-first fine-tunes make your agent worse at doing real work",
-            mechanism="The deeper mechanism is that chat-first fine-tunes inherit conversational priors that break tool protocol adherence.",
+            mechanism="chat-first fine-tunes inherit conversational priors that break tool protocol adherence",
         )
 
-    def assess_originality(self, *, contract, selection, candidate, generated_content):
+    def assess_originality(self, *, contract, selection, topic_context, generated_content):
         if selection.selected_title == self.rejected_title:
             return OriginalityAudit(
-                source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-                core_claim_from_source=candidate.title,
+                source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+                core_claim_from_source=topic_context.candidate.title,
                 transformation_type="reframed",
                 new_mechanism_or_insight="Move away from the downgrade framing and explain the workflow failure mode instead.",
                 originality_score=4.0,
                 decision="reject",
             )
         return OriginalityAudit(
-            source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-            core_claim_from_source=candidate.title,
+            source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+            core_claim_from_source=topic_context.candidate.title,
             transformation_type="applied",
-            new_mechanism_or_insight="The draft applies the signal to real workflow reliability instead of repeating the source claim.",
+            new_mechanism_or_insight="The draft applies the signal to workflow reliability instead of repeating the source claim.",
             originality_score=8.1,
             decision="approve",
         )
 
 
-class NeverOriginalModel(PassingModel):
-    def assess_originality(self, *, contract, selection, candidate, generated_content):
+class BuilderThenDowngradeModel(PassingModel):
+    def __init__(self):
+        self.generate_calls: list[str | None] = []
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.generate_calls.append(revision_feedback)
+        if revision_feedback and "truth alignment guard" in revision_feedback.lower():
+            return build_generated_content(
+                contract,
+                selection,
+                hook="A recent benchmark makes one thing clear: the workflow boundary matters more than the headline score.",
+                mechanism="protocol checks fail when conversational priors leak into the tool contract",
+            )
+        return build_generated_content(
+            contract,
+            selection,
+            hook="I tested the benchmark claim and the workflow boundary failed first.",
+            mechanism="protocol checks fail when conversational priors leak into the tool contract",
+            opening_line="I tested the benchmark claim on a live workflow.",
+        )
+
+
+class EchoChamberFallbackModel(PassingModel):
+    def __init__(self):
+        self.attempted_titles: list[str] = []
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.attempted_titles.append(selection.selected_title)
+        if "downgrade" in selection.selected_title.lower():
+            return build_generated_content(
+                contract,
+                selection,
+                hook="These fine-tunes are a downgrade for agents.",
+                mechanism="discussion threads keep repeating the same downgrade framing",
+            )
+        return build_generated_content(
+            contract,
+            selection,
+            hook="Protocol adherence is the hidden reason agent eval wins fail in production.",
+            mechanism="benchmark gains disappear when tool contracts are looser than the benchmark assumes",
+        )
+
+
+class NeverCredibleModel(PassingModel):
+    def assess_originality(self, *, contract, selection, topic_context, generated_content):
         return OriginalityAudit(
-            source_signal=f"{candidate.supporting_signals[0].source} - {candidate.supporting_signals[0].title}",
-            core_claim_from_source=candidate.title,
+            source_signal=f"{topic_context.candidate.supporting_signals[0].source} - {topic_context.candidate.supporting_signals[0].title}",
+            core_claim_from_source=topic_context.candidate.title,
             transformation_type="reframed",
             new_mechanism_or_insight="Add a new lens instead of repeating the source.",
             originality_score=3.5,
             decision="reject",
         )
 
-    def generate_content(self, *, contract, selection, candidates, creator_context, revision_feedback=None):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         return build_generated_content(
             contract,
             selection,
             hook=selection.selected_title,
-            mechanism="It feels worse in chat than the base model.",
+            mechanism="it feels worse in chat than the base model",
         )
 
 
@@ -256,24 +345,28 @@ class PipelineTests(unittest.TestCase):
                 sender="from@example.com",
                 recipient="to@example.com",
             ),
+            run_notes_dir=data_dir / "run_notes",
         )
 
-    def _signals(self, titles=None):
-        titles = titles or ["Unexpected tradeoff in agent evaluation pipelines"]
-        return [
-            Signal(
-                source="reddit:MachineLearning",
-                title=title,
-                url=f"https://example.com/{index}",
-                published_at="2026-04-15T06:00:00+00:00",
-                engagement_hint={"score": 250 - index, "num_comments": 42 - index},
-                excerpt="A builder explains why the validation boundary broke their workflow.",
-                raw_metadata={},
-            )
-            for index, title in enumerate(titles, start=1)
-        ]
+    def _signal(
+        self,
+        *,
+        title: str,
+        source: str = "reddit:MachineLearning",
+        url: str,
+        excerpt: str = "A builder explains why the validation boundary broke the workflow.",
+    ) -> Signal:
+        return Signal(
+            source=source,
+            title=title,
+            url=url,
+            published_at="2026-04-15T06:00:00+00:00",
+            engagement_hint={"score": 250, "num_comments": 42},
+            excerpt=excerpt,
+            raw_metadata={},
+        )
 
-    def test_pipeline_archives_and_records_review(self) -> None:
+    def test_pipeline_archives_truth_profile_and_records_review(self) -> None:
         temp_dir = self._workspace_run_dir()
         try:
             data_dir = temp_dir / "data"
@@ -285,7 +378,19 @@ class PipelineTests(unittest.TestCase):
                 storage=storage,
                 model=PassingModel(),
                 email_sender=sender,
-                source_adapters=[FakeSource(self._signals())],
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why agent evaluation pipelines break at the workflow boundary",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
             )
 
             result = agent.run(RunOptions(day_override="Monday", send_email=True))
@@ -296,13 +401,17 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(result.artifacts.markdown_path.exists())
             self.assertTrue(result.artifacts.prompt_path.exists())
             self.assertIsNotNone(result.generated_content.originality_audit)
+            self.assertIsNotNone(result.generated_content.truth_profile)
+            self.assertIsNotNone(result.generated_content.topic_dossier)
+            self.assertEqual(result.generated_content.truth_profile.authority_mode, "applied_analyst")
             self.assertIsNotNone(sender.payload)
 
             payload = load_json(result.artifacts.json_path, {})
-            self.assertIn("originality_audit", payload["generated_content"])
+            self.assertIn("truth_profile", payload["generated_content"])
+            self.assertIn("topic_dossier", payload["generated_content"])
             self.assertEqual(payload["generated_content"]["originality_audit"]["decision"], "approve")
 
-            review = record_review(storage, run_id=result.summary.run_id, decision="approved", notes="Strong builder angle.")
+            review = record_review(storage, run_id=result.summary.run_id, decision="approved", notes="Strong analyst angle.")
             self.assertEqual(review.decision, "approved")
 
             index = load_json(data_dir / "history" / "index.json", {})
@@ -322,7 +431,20 @@ class PipelineTests(unittest.TestCase):
                 storage=storage,
                 model=PassingModel(),
                 email_sender=sender,
-                source_adapters=[FailingSource(), FakeSource(self._signals())],
+                source_adapters=[
+                    FailingSource(),
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    ),
+                ],
             )
 
             result = agent.run(RunOptions(day_override="Monday", send_email=True))
@@ -345,16 +467,63 @@ class PipelineTests(unittest.TestCase):
                 storage=storage,
                 model=model,
                 email_sender=FakeEmailSender(),
-                source_adapters=[FakeSource(self._signals(["These Opus fine-tunes are a downgrade"]))],
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="These Opus fine-tunes are a downgrade", url="https://example.com/1"),
+                            self._signal(
+                                title="Why tool protocol adherence matters more than benchmark wins",
+                                source="rss:blog",
+                                url="https://github.com/example/opus-agent-eval",
+                                excerpt="A repo-backed evaluation shows tool contract failures are often the real boundary.",
+                            ),
+                        ]
+                    )
+                ],
             )
 
             result = agent.run(RunOptions(day_override="Monday", send_email=False))
 
             self.assertEqual(len(model.generate_calls), 2)
-            self.assertIsNone(model.generate_calls[0])
-            self.assertIsNotNone(model.generate_calls[1])
+            self.assertIn("originality", (model.generate_calls[1] or "").lower())
             self.assertEqual(result.generated_content.originality_audit.decision, "approve")
             self.assertIn("protocol breakage", result.generated_content.primary.hook.lower())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_downgrades_builder_language_to_applied_analyst(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = BuilderThenDowngradeModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(RunOptions(day_override="Monday", send_email=False))
+
+            self.assertEqual(len(model.generate_calls), 2)
+            self.assertEqual(result.generated_content.truth_profile.authority_mode, "applied_analyst")
+            self.assertNotIn("i tested", result.generated_content.primary.draft_post.lower())
+            self.assertIn("recent benchmark", result.generated_content.primary.draft_post.lower())
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -372,12 +541,21 @@ class PipelineTests(unittest.TestCase):
                 email_sender=FakeEmailSender(),
                 source_adapters=[
                     FakeSource(
-                        self._signals(
-                            [
-                                "These Opus fine-tunes are a downgrade",
-                                "Why tool protocol adherence matters more than benchmark wins",
-                            ]
-                        )
+                        [
+                            self._signal(title="These Opus fine-tunes are a downgrade", url="https://example.com/1"),
+                            self._signal(
+                                title="Why tool protocol adherence matters more than benchmark wins",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A repo-backed evaluation explains the workflow failure mode.",
+                            ),
+                            self._signal(
+                                title="Tool protocol adherence is the real eval boundary",
+                                source="rss:blog",
+                                url="https://openai.com/research/agent-evals",
+                                excerpt="A research-style writeup focuses on contract adherence instead of chat quality.",
+                            ),
+                        ]
                     )
                 ],
             )
@@ -397,7 +575,44 @@ class PipelineTests(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_pipeline_raises_when_no_candidate_passes_originality_guard(self) -> None:
+    def test_pipeline_rejects_echo_chamber_topic_and_falls_back(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = EchoChamberFallbackModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="These Opus fine-tunes are a downgrade", url="https://example.com/1"),
+                            self._signal(title="Why these Opus fine-tunes are still a downgrade", source="reddit:LocalLLaMA", url="https://example.com/2"),
+                            self._signal(title="Opus fine-tunes feel like a downgrade in agents", source="hackernews", url="https://example.com/3"),
+                            self._signal(
+                                title="Protocol adherence is the hidden eval boundary in agents",
+                                source="rss:blog",
+                                url="https://github.com/example/protocol-evals",
+                                excerpt="A repo-backed evaluation points to contract adherence rather than generic downgrade claims.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(RunOptions(day_override="Thursday", send_email=False))
+
+            self.assertGreaterEqual(len(model.attempted_titles), 3)
+            self.assertEqual(result.summary.selected_topic, "Protocol adherence is the hidden eval boundary in agents")
+            self.assertFalse(result.generated_content.topic_dossier.weak_signal_echo)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_raises_when_no_candidate_passes_truth_or_originality_guard(self) -> None:
         temp_dir = self._workspace_run_dir()
         try:
             data_dir = temp_dir / "data"
@@ -406,16 +621,14 @@ class PipelineTests(unittest.TestCase):
             agent = ContentAgent(
                 config=config,
                 storage=storage,
-                model=NeverOriginalModel(),
+                model=NeverCredibleModel(),
                 email_sender=FakeEmailSender(),
                 source_adapters=[
                     FakeSource(
-                        self._signals(
-                            [
-                                "These Opus fine-tunes are a downgrade",
-                                "This eval stack is still a downgrade",
-                            ]
-                        )
+                        [
+                            self._signal(title="These Opus fine-tunes are a downgrade", url="https://example.com/1"),
+                            self._signal(title="This eval stack is still a downgrade", source="reddit:LocalLLaMA", url="https://example.com/2"),
+                        ]
                     )
                 ],
             )
@@ -423,7 +636,7 @@ class PipelineTests(unittest.TestCase):
             with self.assertRaises(RuntimeError) as context:
                 agent.run(RunOptions(day_override="Monday", send_email=False))
 
-            self.assertIn("No candidate passed the originality guard", str(context.exception))
+            self.assertIn("No candidate passed the truth/originality guard", str(context.exception))
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

@@ -139,6 +139,7 @@ class AppConfig:
     reddit_subreddits: tuple[str, ...]
     youtube_channel_ids: tuple[str, ...]
     smtp: SMTPConfig
+    run_notes_dir: Path
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -172,6 +173,7 @@ class AppConfig:
             ),
             youtube_channel_ids=() if youtube_channel_ids is None else youtube_channel_ids,
             smtp=smtp,
+            run_notes_dir=Path(os.getenv("LCA_RUN_NOTES_DIR", str(data_dir / "run_notes"))),
         )
 
     @property

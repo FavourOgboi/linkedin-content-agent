@@ -9,6 +9,13 @@ from typing import Any, Literal
 Decision = Literal["approved", "rejected"]
 OriginalityDecision = Literal["approve", "reject"]
 TransformationType = Literal["reframed", "deepened", "challenged", "applied"]
+SourceOwnership = Literal["first_hand", "mixed", "second_hand", "general_knowledge"]
+EvidenceStrengthLabel = Literal["strong", "medium", "weak"]
+RiskLevel = Literal["low", "medium", "high"]
+AuthorityMode = Literal["builder", "applied_analyst", "amplifier", "exploratory", "light"]
+PositionType = Literal["support", "challenge", "refine", "test"]
+SourceQuality = Literal["first_hand", "reproducible", "technical_writeup", "discussion"]
+ConflictLevel = Literal["low", "medium", "high"]
 
 
 @dataclass(slots=True)
@@ -16,6 +23,16 @@ class SourceReference:
     source: str
     title: str
     url: str
+
+
+@dataclass(slots=True)
+class RunNote:
+    topic: str
+    summary: str
+    observations: list[str]
+    measured: bool = False
+    created_at: str | None = None
+    references: list[SourceReference] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -52,6 +69,53 @@ class TopicCandidate:
     angles: list[str]
     novelty_penalty: float
     supporting_signals: list[SourceReference] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DossierSource:
+    reference: SourceReference
+    source_quality: SourceQuality
+    evidence_type: str
+    claim: str
+    confidence: EvidenceStrengthLabel
+
+
+@dataclass(slots=True)
+class TopicDossier:
+    topic_title: str
+    primary_signal: SourceReference
+    sources: list[DossierSource]
+    source_count: int
+    claim_summaries: list[str]
+    consensus_summary: str
+    disagreement_notes: list[str]
+    stronger_source_present: bool
+    weak_signal_echo: bool
+    matched_run_note: str | None = None
+
+
+@dataclass(slots=True)
+class TruthProfile:
+    source_ownership: SourceOwnership
+    evidence_strength: EvidenceStrengthLabel
+    risk_level: RiskLevel
+    authority_mode: AuthorityMode
+    position: PositionType
+    conflict_level: ConflictLevel
+    provenance_rule: str
+    allowed_claim_posture: str
+    required_copy_moves: list[str]
+    forbidden_moves: list[str]
+    allows_first_person_experiment: bool
+    requires_explicit_provenance: bool
+    allows_exact_metrics: bool
+
+
+@dataclass(slots=True)
+class TopicContext:
+    candidate: TopicCandidate
+    dossier: TopicDossier
+    truth_profile: TruthProfile
 
 
 @dataclass(slots=True)
@@ -98,6 +162,8 @@ class GeneratedContent:
     backups: list[BackupIdea]
     selected_topic_reason: str
     originality_audit: OriginalityAudit | None = None
+    topic_dossier: TopicDossier | None = None
+    truth_profile: TruthProfile | None = None
 
 
 @dataclass(slots=True)

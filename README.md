@@ -5,9 +5,11 @@ This project generates one day-specific LinkedIn post package plus two backup id
 ## What It Does
 
 - Collects compliant public signals from RSS, Hacker News, Reddit, and optional YouTube feeds
-- Scores topics against a defined creator positioning
+- Builds a topic dossier for shortlisted angles, including supporting or conflicting sources
+- Assigns a truth profile so the draft knows whether it should sound like a builder, applied analyst, amplifier, or exploratory voice
 - Uses the OpenAI Responses API with structured JSON outputs
 - Runs deterministic and model-based anti-generic checks
+- Runs separate truth-alignment and originality guards before anything ships
 - Archives every run to JSONL, Markdown, JSON, and a rebuildable SQLite cache
 - Captures review decisions through a dedicated CLI command
 
@@ -100,6 +102,48 @@ Artifacts are written locally to:
 - `data/prompts/` for saved prompt/context payloads
 - `data/history/` for run and review history
 - `data/artifacts/` for the rebuildable SQLite cache
+- `data/run_notes/` for optional first-hand experiment notes
+
+## Truth-Aligned Authority Engine
+
+The agent now separates source retrieval from writing posture:
+
+- `signal -> topic dossier -> truth profile -> authority mode -> post`
+- Default automated posture is `applied_analyst`, not `builder`
+- The draft must make provenance explicit whenever the evidence is second-hand or mixed
+- Builder authority is only allowed when you have a matching run note in `data/run_notes/`
+
+Reviewer-facing artifacts now include:
+
+- selected topic dossier
+- authority mode
+- source ownership
+- evidence strength
+- risk and conflict level
+- originality audit
+
+The public-facing LinkedIn draft does not expose those reviewer labels.
+
+## Optional Run Notes
+
+If you want true Builder authority in the future, add a JSON note under `data/run_notes/` or point `LCA_RUN_NOTES_DIR` somewhere else.
+
+Example:
+
+```json
+{
+  "topic": "Political benchmark replication",
+  "summary": "I tried to replicate the refusal claim on a smaller workflow.",
+  "observations": [
+    "The refusal pattern did not reproduce cleanly.",
+    "The safety layer looked setup-dependent."
+  ],
+  "measured": false,
+  "created_at": "2026-04-16T09:00:00+01:00"
+}
+```
+
+If no matching run note exists, automated runs will stay in `applied_analyst`, `amplifier`, `exploratory`, or `light` modes.
 
 ## Scheduling
 
