@@ -141,6 +141,22 @@ CAUSAL_PATTERNS = (
     "means that",
 )
 
+SATURDAY_EVOLUTION_PATTERNS = (
+    "i used to think",
+    "changed my mind",
+    "thinking evolved",
+    "i now think",
+    "i now assume",
+    "i've started",
+    "i have started",
+    "i started treating",
+    "i now treat",
+    "my mental model changed",
+    "i used to read",
+    "i no longer assume",
+    "that changed how i",
+)
+
 
 def _collect_text(post: PostPackage) -> str:
     return " ".join(
@@ -247,7 +263,7 @@ def validate_post_package(post: PostPackage, contract: DayContract) -> list[str]
         if not any(token in combined for token in ("common belief", "most people", "popular advice", "i disagree", "we should stop")):
             issues.append("Friday post must challenge a common belief.")
     elif contract.day == "Saturday":
-        if not any(token in combined for token in ("i used to think", "changed my mind", "thinking evolved", "i now think")):
+        if not any(token in combined for token in SATURDAY_EVOLUTION_PATTERNS):
             issues.append("Saturday post must show how thinking evolved.")
     elif contract.day == "Sunday":
         if "struggle" not in combined and "hard part" not in combined:

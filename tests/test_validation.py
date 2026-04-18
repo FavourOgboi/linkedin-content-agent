@@ -247,6 +247,26 @@ class ValidationTests(unittest.TestCase):
         issues = validate_truth_alignment(content, resolve_day_contract("Monday"), topic_context)
         self.assertTrue(any("echoing low-quality sources" in issue.lower() for issue in issues))
 
+    def test_saturday_accepts_natural_thinking_evolved_phrasing(self) -> None:
+        content = self._valid_monday_content()
+        content.primary.day = "Saturday"
+        content.primary.post_type = "Thinking / Reflection"
+        content.primary.hook = "I used to read leaderboards like rankings. I now assume they describe a stack."
+        content.primary.core_idea = [
+            "I used to read the top model on a chart as the answer.",
+            "I've started treating conflicting evals as a sign that my thinking evolved around the whole stack.",
+            "The insight is that setup details matter more than a single benchmark headline.",
+        ]
+        content.primary.draft_post = (
+            "I used to read the leaderboard and pick the top model.\n"
+            "I've started treating evals as properties of a stack instead.\n"
+            "I now assume the runtime, quantization, prompts, and agent design matter as much as the benchmark itself.\n"
+            "That changed how I choose what to test next."
+        )
+
+        issues = validate_generated_content(content, resolve_day_contract("Saturday"))
+        self.assertFalse(any("thinking evolved" in issue.lower() for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -303,6 +303,101 @@ class NeverCredibleModel(PassingModel):
         )
 
 
+class SaturdayPositiveReasonModel(PassingModel):
+    def __init__(self, test_case: unittest.TestCase):
+        self._test_case = test_case
+        self.feedback_seen: list[str | None] = []
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.feedback_seen.append(revision_feedback)
+        if len(self.feedback_seen) > 1:
+            self._test_case.assertNotIn("The Saturday reflection requirement is met", revision_feedback)
+            primary = PostPackage(
+                day=contract.day,
+                post_type=contract.post_type,
+                hook="I used to read leaderboards like rankings. I now assume they describe a stack.",
+                core_idea=[
+                    "I used to read the top model on a chart as the answer.",
+                    "I've started treating conflicting evals as a sign that my thinking evolved around the whole stack.",
+                    "The insight is that setup details matter more than a single benchmark headline.",
+                ],
+                draft_post=(
+                    "I used to read the leaderboard and pick the top model.\n"
+                    "A recent benchmark and a few external writeups changed how I read the stack.\n"
+                    "Across a few sources, I’ve started treating evals as properties of a stack instead.\n"
+                    "I now assume the runtime, quantization, prompts, and agent design matter as much as the benchmark itself.\n"
+                    "That changed how I choose what to test next."
+                ),
+                visual_suggestion="Simple stack diagram from hardware through prompts and tool calls.",
+                why_this_works="It shows how the thinking changed without pretending the benchmarks were mine.",
+                source_refs=[SourceReference(source="reddit:LocalLLaMA", title=selection.selected_title, url="https://example.com/topic")],
+                self_audit=SelfAudit(passed_checks=["Shows how thinking evolved and keeps provenance explicit."], critic_notes=[]),
+            )
+            backups = [
+                BackupIdea(
+                    title="Why conflicting evals improved my model selection process",
+                    angle="Reflection",
+                    hook="The disagreement between benchmarks changed my workflow.",
+                    why_now="People still read leaderboards as global rankings.",
+                    visual_suggestion="Two conflicting benchmark screenshots and one systems diagram.",
+                ),
+                BackupIdea(
+                    title="Leaderboards are properties of a stack, not just a model",
+                    angle="Insight",
+                    hook="I no longer read eval wins as standalone truths.",
+                    why_now="Agent stacks keep widening the gap between leaderboard wins and production behavior.",
+                    visual_suggestion="Layered stack sketch.",
+                ),
+            ]
+            return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Saturday reflection.")
+
+        primary = PostPackage(
+            day=contract.day,
+            post_type=contract.post_type,
+            hook="Why benchmark disagreement matters for agent stacks.",
+            core_idea=[
+                "Conflicting benchmarks exposed a gap in model ranking interpretation.",
+                "The insight is that stack context matters more than I expected.",
+            ],
+            draft_post=(
+                "Across a few community benchmarks, the same model looked different across stacks.\n"
+                "The insight is that stack context matters more than I expected.\n"
+                "The tradeoff is slower interpretation for better decisions."
+            ),
+            visual_suggestion="Benchmark snippets beside a stack diagram.",
+            why_this_works="It is technically grounded, but it still reads like commentary rather than reflection.",
+            source_refs=[SourceReference(source="reddit:LocalLLaMA", title=selection.selected_title, url="https://example.com/topic")],
+            self_audit=SelfAudit(passed_checks=["Explicit provenance is present."], critic_notes=[]),
+        )
+        backups = [
+            BackupIdea(
+                title="Why conflicting evals matter",
+                angle="Reflection",
+                hook="Benchmark disagreement changed how I read rankings.",
+                why_now="More builders are discovering stack-dependent behavior.",
+                visual_suggestion="Two benchmark screenshots.",
+            ),
+            BackupIdea(
+                title="Stack context beats headline ranking",
+                angle="Insight",
+                hook="The stack changes the meaning of the score.",
+                why_now="Agent workflows make eval interpretation harder.",
+                visual_suggestion="Stack diagram.",
+            ),
+        ]
+        return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Saturday reflection.")
+
+    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+        return ModelAuditResult(
+            passed=True,
+            reasons=[
+                "The Saturday reflection requirement is met: the post clearly shows evolution in thinking.",
+                "Provenance and claim posture are correct.",
+            ],
+            revision_instructions="Strengthen the explicit how-thinking-evolved language.",
+        )
+
+
 class FakeEmailSender:
     def __init__(self, status="sent", detail="ok"):
         self.status = status
@@ -488,6 +583,41 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("originality", (model.generate_calls[1] or "").lower())
             self.assertEqual(result.generated_content.originality_audit.decision, "approve")
             self.assertIn("protocol breakage", result.generated_content.primary.hook.lower())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_does_not_treat_positive_audit_notes_as_failures(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = SaturdayPositiveReasonModel(self)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="A benchmark changed how I read model rankings", url="https://example.com/1"),
+                            self._signal(
+                                title="Why one benchmark headline should change how you read agent stacks",
+                                source="rss:blog",
+                                url="https://simonwillison.net/example",
+                                excerpt="A technical writeup explains how stack context changes what an eval result means.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(RunOptions(day_override="Saturday", send_email=False))
+
+            self.assertEqual(len(model.feedback_seen), 2)
+            self.assertIn("started treating", result.generated_content.primary.draft_post.lower())
+            self.assertEqual(result.generated_content.truth_profile.authority_mode, "applied_analyst")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

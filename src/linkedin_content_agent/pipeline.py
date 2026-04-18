@@ -366,8 +366,9 @@ class ContentAgent:
                 generated_content.primary.self_audit.critic_notes.extend(audit.reasons)
                 return generated_content
 
-            last_issues = deterministic_issues + audit.reasons
-            feedback_parts = [revision_feedback, *last_issues, audit.revision_instructions]
+            audit_issues = [] if audit.passed else audit.reasons
+            last_issues = deterministic_issues + audit_issues
+            feedback_parts = [revision_feedback, *deterministic_issues, *audit_issues, audit.revision_instructions]
             revision_feedback = "\n".join(part for part in feedback_parts if part)
 
         raise RuntimeError("Content generation failed critic review: " + "; ".join(last_issues))
