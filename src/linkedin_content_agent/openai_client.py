@@ -28,7 +28,18 @@ Rules:
 - External signals are inputs, not final framing
 - Do not reuse a source headline framing or restate a source conclusion directly
 - Every accepted draft must add a deeper mechanism, contradiction, or applied system explanation
+- Never copy distinctive source phrasing verbatim when paraphrasing external experiments or articles
 """.strip()
+
+
+def _day_specific_generation_hints(contract: DayContract) -> list[str]:
+    if contract.day == "Saturday":
+        return [
+            "Saturday-specific rule: the draft must explicitly show how thinking evolved.",
+            "Use natural reflection phrasing such as 'I used to think...', 'I've started...', 'I now assume...', 'I no longer assume...', or 'That changed how I...'.",
+            "Do not rely on generic reflection. Make the evolution visible in the hook or draft body.",
+        ]
+    return []
 
 
 class ContentModel(Protocol):
@@ -196,6 +207,7 @@ class OpenAIContentModel:
             json.dumps([asdict(context) for context in reference_contexts[:5]], indent=2),
             "",
             "Return one primary post package and exactly two backup ideas.",
+            "The primary core_idea array must contain 3 to 5 bullets only. Four is ideal. Never return 6 bullets.",
             "The primary post must use the exact output structure. It must not sound motivational or generic.",
             f"Authority mode for this post: {topic_context.truth_profile.authority_mode}.",
             f"Allowed claim posture: {topic_context.truth_profile.allowed_claim_posture}",
@@ -205,6 +217,7 @@ class OpenAIContentModel:
             "You must add a deeper mechanism, contradiction, or applied system explanation that makes the idea feel owned rather than aggregated.",
             "Never present an external experiment as if the creator ran it.",
             "If explicit provenance is required, make that clear in the hook or first two lines.",
+            *_day_specific_generation_hints(contract),
         ]
         if revision_feedback:
             prompt_parts.extend(

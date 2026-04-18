@@ -266,6 +266,29 @@ class ContentAgent:
         ]
         return "\n".join(lines)
 
+    def _deterministic_feedback(self, contract: object, issues: list[str]) -> str | None:
+        if not issues:
+            return None
+
+        lines = [
+            "Fix these deterministic validation issues before anything else.",
+            *issues,
+        ]
+
+        if "Core idea must contain 3 to 5 bullets." in issues:
+            lines.append("Return exactly 3 to 5 `core_idea` bullets. Four is preferred. Never return 6 bullets.")
+        if "Post must include at least one mistake, insight, unexpected result, or tradeoff." in issues:
+            lines.append("Make at least one `core_idea` bullet and one draft line explicitly mention a mistake, insight, unexpected result, or tradeoff.")
+        if contract.day == "Saturday" and "Saturday post must show how thinking evolved." in issues:
+            lines.append("For Saturday, explicitly show thinking evolution with phrasing like 'I used to think...', 'I've started...', 'I now assume...', or 'That changed how I...'.")
+        if contract.day == "Thursday" and "Thursday post must explain what this actually changes." in issues:
+            lines.append("For Thursday, include the literal frame 'What this actually changes is ...' in the core idea or draft.")
+        if contract.day == "Thursday" and "Thursday post must include implications." in issues:
+            lines.append("For Thursday, include a literal implication line such as 'Implication:' or 'That means ...'.")
+
+        lines.append("Do not defend the current draft. Rewrite the affected sections so every deterministic issue disappears.")
+        return "\n".join(lines)
+
     def _originality_feedback(
         self,
         audit: OriginalityAudit,
@@ -368,7 +391,12 @@ class ContentAgent:
 
             audit_issues = [] if audit.passed else audit.reasons
             last_issues = deterministic_issues + audit_issues
-            feedback_parts = [revision_feedback, *deterministic_issues, *audit_issues, audit.revision_instructions]
+            feedback_parts = [
+                revision_feedback,
+                self._deterministic_feedback(contract, deterministic_issues),
+                *audit_issues,
+                audit.revision_instructions,
+            ]
             revision_feedback = "\n".join(part for part in feedback_parts if part)
 
         raise RuntimeError("Content generation failed critic review: " + "; ".join(last_issues))

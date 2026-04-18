@@ -398,6 +398,72 @@ class SaturdayPositiveReasonModel(PassingModel):
         )
 
 
+class DeterministicRetryModel(PassingModel):
+    def __init__(self, test_case: unittest.TestCase):
+        self._test_case = test_case
+        self.generate_calls: list[str | None] = []
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.generate_calls.append(revision_feedback)
+        if len(self.generate_calls) > 1:
+            self._test_case.assertIn("Return exactly 3 to 5 `core_idea` bullets", revision_feedback)
+            self._test_case.assertIn("For Saturday, explicitly show thinking evolution", revision_feedback)
+            return build_generated_content(
+                contract,
+                selection,
+                hook="I used to read leaderboards like rankings. I now assume they describe a stack.",
+                mechanism="stack context changes what the same benchmark score really means",
+                opening_line="A recent benchmark and a few external writeups changed how I read model rankings.",
+            )
+
+        primary = PostPackage(
+            day=contract.day,
+            post_type=contract.post_type,
+            hook="Why benchmark disagreement matters for agent stacks.",
+            core_idea=[
+                "Benchmark disagreement matters.",
+                "The stack matters.",
+                "The runtime matters.",
+                "The prompt matters.",
+                "The eval harness matters.",
+                "The deployment target matters.",
+            ],
+            draft_post=(
+                "Across a few sources, the same model looked different across stacks.\n"
+                "The stack context matters more than the benchmark headline.\n"
+                "That tradeoff is slower interpretation for better decisions."
+            ),
+            visual_suggestion="Benchmark snippets beside a stack diagram.",
+            why_this_works="It is technically grounded, but it still needs explicit Saturday reflection language.",
+            source_refs=[SourceReference(source="reddit:LocalLLaMA", title=selection.selected_title, url="https://example.com/topic")],
+            self_audit=SelfAudit(passed_checks=["Explicit provenance is present."], critic_notes=[]),
+        )
+        backups = [
+            BackupIdea(
+                title="Why benchmark disagreement matters",
+                angle="Reflection",
+                hook="Benchmark disagreement changed how I read rankings.",
+                why_now="More builders are discovering stack-dependent behavior.",
+                visual_suggestion="Two benchmark screenshots.",
+            ),
+            BackupIdea(
+                title="Stack context beats headline ranking",
+                angle="Insight",
+                hook="The stack changes the meaning of the score.",
+                why_now="Agent workflows make eval interpretation harder.",
+                visual_suggestion="Stack diagram.",
+            ),
+        ]
+        return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Saturday reflection.")
+
+    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+        return ModelAuditResult(
+            passed=True,
+            reasons=["The provenance is otherwise sound."],
+            revision_instructions="Fix the deterministic structure and reflection requirements first.",
+        )
+
+
 class FakeEmailSender:
     def __init__(self, status="sent", detail="ok"):
         self.status = status
@@ -618,6 +684,41 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(model.feedback_seen), 2)
             self.assertIn("started treating", result.generated_content.primary.draft_post.lower())
             self.assertEqual(result.generated_content.truth_profile.authority_mode, "applied_analyst")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_recovers_from_deterministic_structure_and_saturday_feedback(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = DeterministicRetryModel(self)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="A benchmark changed how I read model rankings", url="https://example.com/1"),
+                            self._signal(
+                                title="Why one benchmark headline should change how you read agent stacks",
+                                source="rss:blog",
+                                url="https://simonwillison.net/example",
+                                excerpt="A technical writeup explains how stack context changes what an eval result means.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(RunOptions(day_override="Saturday", send_email=False))
+
+            self.assertEqual(len(model.generate_calls), 2)
+            self.assertLessEqual(len(result.generated_content.primary.core_idea), 5)
+            self.assertIn("i now assume", result.generated_content.primary.hook.lower())
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

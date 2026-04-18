@@ -42,11 +42,11 @@ POST_PACKAGE_SCHEMA = {
         "day": {"type": "string", "enum": DAY_ENUM},
         "post_type": {"type": "string", "enum": POST_TYPE_ENUM},
         "hook": {"type": "string"},
-        "core_idea": {"type": "array", "items": {"type": "string"}},
+        "core_idea": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 5},
         "draft_post": {"type": "string"},
         "visual_suggestion": {"type": "string"},
         "why_this_works": {"type": "string"},
-        "source_refs": {"type": "array", "items": SOURCE_REFERENCE_SCHEMA},
+        "source_refs": {"type": "array", "items": SOURCE_REFERENCE_SCHEMA, "minItems": 1},
         "self_audit": SELF_AUDIT_SCHEMA,
     },
     "required": [
@@ -92,7 +92,7 @@ GENERATION_PAYLOAD_SCHEMA = {
     "type": "object",
     "properties": {
         "primary": POST_PACKAGE_SCHEMA,
-        "backups": {"type": "array", "items": BACKUP_IDEA_SCHEMA},
+        "backups": {"type": "array", "items": BACKUP_IDEA_SCHEMA, "minItems": 2, "maxItems": 2},
         "selected_topic_reason": {"type": "string"},
     },
     "required": ["primary", "backups", "selected_topic_reason"],
