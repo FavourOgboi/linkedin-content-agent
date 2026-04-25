@@ -596,19 +596,10 @@ class TooLongCommentaryModel(PassingModel):
 
     def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         self.generate_calls.append(revision_feedback)
-        if revision_feedback and "length limit" in revision_feedback.lower():
-            return build_generated_content(
-                contract,
-                selection,
-                post_type=topic_context.creator_post_type,
-                hook="The real problem with this release is not the model. It is the invisible operational cost.",
-                mechanism="teams still confuse model headlines with workflow reality",
-                content_format=topic_context.content_format,
-            )
-
         too_long_body = "\n".join(
             [
                 "The headline is not the story.",
+                "According to a recent technical writeup, the release sounds cleaner than the workflow reality feels.",
                 *["This extra line keeps repeating the same point in a slightly different way." for _ in range(18)],
             ]
         )
@@ -967,7 +958,7 @@ class PipelineTests(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_pipeline_rejects_invalid_extended_relatable_mode(self) -> None:
+    def test_pipeline_allows_extended_relatable_mode_when_the_model_asks_for_more_room(self) -> None:
         temp_dir = self._workspace_run_dir()
         try:
             data_dir = temp_dir / "data"
@@ -993,16 +984,15 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            with self.assertRaises(RuntimeError) as context:
-                agent.run(
-                    RunOptions(day_override="Friday", post_type_override="relatable", format_override="text", send_email=False)
-                )
+            result = agent.run(
+                RunOptions(day_override="Friday", post_type_override="relatable", format_override="text", send_email=False)
+            )
 
-            self.assertIn("has no extended mode", str(context.exception))
+            self.assertEqual(result.generated_content.primary.length_mode, "extended")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_pipeline_retries_when_commentary_is_too_long(self) -> None:
+    def test_pipeline_accepts_longer_commentary_without_length_retry(self) -> None:
         temp_dir = self._workspace_run_dir()
         try:
             data_dir = temp_dir / "data"
@@ -1033,8 +1023,8 @@ class PipelineTests(unittest.TestCase):
                 RunOptions(day_override="Thursday", post_type_override="commentary", format_override="text", send_email=False)
             )
 
-            self.assertEqual(len(model.generate_calls), 2)
-            self.assertIn("length limit", (model.generate_calls[1] or "").lower())
+            self.assertEqual(len(model.generate_calls), 1)
+            self.assertIn("Truth alignment contract", model.generate_calls[0] or "")
             self.assertEqual(result.generated_content.primary.length_mode, "standard")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)

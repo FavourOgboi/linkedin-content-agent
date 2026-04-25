@@ -199,38 +199,23 @@ Reviewer-facing artifacts now include:
 
 The public-facing LinkedIn draft does not expose those reviewer labels.
 
-## Length Governance
+## Length Guidance
 
-The agent now enforces length on the actual public-facing post copy only:
+The agent no longer enforces hard word-count or line-count limits on the public post.
 
-- `hook`
-- `draft_post`
+Instead, it treats length as a writing choice:
 
-It does **not** count reviewer metadata such as:
+- `length_mode` is descriptive, not a gate
+- the model can stay tight or go longer when the idea genuinely needs room
+- readability, hook quality, truth alignment, originality, and invisible structure are still enforced
 
-- `core_idea`
-- `why_this_works`
-- truth/originality review notes
+That means the agent now has more freedom to:
 
-Length rules are post-type-aware:
+- explain technical ideas properly
+- go deeper on commentary when the point needs more context
+- keep shorter posts short without padding
 
-- `insight`
-  - standard max `140` words, extended max `220`, max `12` non-empty lines
-- `relatable`
-  - standard max `70` words, no extended mode, max `6` non-empty lines
-- `commentary`
-  - standard max `160` words, extended max `250`, max `14` non-empty lines
-- `teaching`
-  - standard max `170` words, extended max `280`, max `16` non-empty lines
-- `inspiration`
-  - standard max `90` words, no extended mode, max `7` non-empty lines
-
-Important rules:
-
-- `extended` length is allowed only for `insight`, `commentary`, and `teaching`
-- if the model requests `extended`, it must provide a one-sentence reason
-- there is no minimum-word filler rule; brevity is allowed if the post lands cleanly
-- hashtag-only lines are ignored for word-count enforcement
+In other words: no strict length cap, but still no permission to ramble.
 
 ## Optional Run Notes
 

@@ -127,14 +127,6 @@ FORMAT OUTPUT: INFOGRAPHIC
 """,
 }
 
-POST_TYPE_LENGTH_POLICY: dict[CreatorPostType, dict[str, int]] = {
-    "insight": {"standard": 140, "extended": 220, "max_lines": 12},
-    "relatable": {"standard": 70, "extended": 70, "max_lines": 6},
-    "commentary": {"standard": 160, "extended": 250, "max_lines": 14},
-    "teaching": {"standard": 170, "extended": 280, "max_lines": 16},
-    "inspiration": {"standard": 90, "extended": 90, "max_lines": 7},
-}
-
 EVIDENCE_POLICIES: dict[CreatorPostType, dict[str, Any]] = {
     "insight": {
         "requires_source": False,
@@ -298,10 +290,6 @@ def get_evidence_policy(post_type: str) -> dict[str, Any]:
 
 def get_originality_threshold(post_type: str) -> float:
     return float(ORIGINALITY_THRESHOLDS.get(post_type, ORIGINALITY_THRESHOLDS["insight"]))
-
-
-def get_length_policy(post_type: str) -> dict[str, int]:
-    return dict(POST_TYPE_LENGTH_POLICY.get(post_type, POST_TYPE_LENGTH_POLICY["insight"]))
 
 
 def get_banned_words() -> tuple[str, ...]:

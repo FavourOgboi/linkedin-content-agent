@@ -6,7 +6,6 @@ import re
 from linkedin_content_agent.content_strategy import (
     get_banned_words,
     get_evidence_policy,
-    get_length_policy,
     get_originality_threshold,
     normalize_creator_post_type,
 )
@@ -335,39 +334,8 @@ def check_labeled_paragraphs(post_text: str) -> list[str]:
 
 
 def check_post_length(post_text: str, post_type: str, length_mode: str = "standard", length_mode_reason: str | None = None) -> list[str]:
-    issues: list[str] = []
-    policy = get_length_policy(post_type)
-    length_mode_reason = (length_mode_reason or "").strip()
-
-    if length_mode == "extended" and policy["standard"] == policy["extended"]:
-        issues.append(
-            f"'{post_type}' has no extended mode. Rewrite to standard length instead of asking for more space."
-        )
-        return issues
-
-    if length_mode == "extended" and not length_mode_reason:
-        issues.append("Extended mode requires a non-empty length_mode_reason.")
-        return issues
-
-    max_words = policy["extended"] if length_mode == "extended" else policy["standard"]
-    content_lines = [
-        line.strip()
-        for line in post_text.strip().splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
-    word_count = len(" ".join(content_lines).split())
-    line_count = len(content_lines)
-
-    if word_count > max_words:
-        issues.append(
-            f"Post too long: {word_count} words. Hard max for '{post_type}' in {length_mode} mode is {max_words}. Cut the weakest line. Do not summarize."
-        )
-    if line_count > policy["max_lines"]:
-        issues.append(
-            f"Too many lines: {line_count}. Hard max for '{post_type}' is {policy['max_lines']} non-empty lines."
-        )
-
-    return issues
+    _ = (post_text, post_type, length_mode, length_mode_reason)
+    return []
 
 
 def check_provenance_explicit(post_text: str, post_type: str, topic_context: TopicContext) -> list[str]:
@@ -412,7 +380,6 @@ def validate_post_package(post: PostPackage, contract: DayContract, topic_contex
     issues.extend(check_readability(" ".join([post.hook, post.draft_post, post.why_this_works])))
     issues.extend(check_hook_discipline(visible_post_text, creator_post_type))
     issues.extend(check_labeled_paragraphs(visible_post_text))
-    issues.extend(check_post_length(visible_post_text, creator_post_type, post.length_mode, post.length_mode_reason))
 
     if creator_post_type in {"insight", "commentary", "teaching"} and not any(
         token in combined for token in ("mistake", "insight", "unexpected", "tradeoff")
@@ -552,11 +519,6 @@ def validate_generated_content(
 ) -> list[str]:
     issues = validate_post_package(generated_content.primary, contract, topic_context)
     expected_format = topic_context.content_format if topic_context is not None else "text"
-    if topic_context is not None and generated_content.primary.length_mode == "extended":
-        creator_post_type = normalize_creator_post_type(generated_content.primary.post_type)
-        policy = get_length_policy(creator_post_type)
-        if policy["standard"] == policy["extended"]:
-            issues.append(f"'{creator_post_type}' has no extended mode. Rewrite to standard length instead of asking for more space.")
 
     if expected_format == "text":
         if generated_content.format_plan is not None:

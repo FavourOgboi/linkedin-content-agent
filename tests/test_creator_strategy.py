@@ -13,7 +13,6 @@ if str(SRC) not in sys.path:
 from linkedin_content_agent.content_strategy import (
     POST_TYPE_WEIGHTS,
     get_evidence_policy,
-    get_length_policy,
     get_originality_threshold,
     normalize_creator_post_type,
     passes_topic_filter,
@@ -64,10 +63,6 @@ class CreatorStrategyTests(unittest.TestCase):
     def test_originality_threshold_lower_for_relatable(self) -> None:
         self.assertLess(get_originality_threshold("relatable"), get_originality_threshold("insight"))
 
-    def test_length_policy_exposes_extended_mode_for_teaching(self) -> None:
-        policy = get_length_policy("teaching")
-        self.assertGreater(policy["extended"], policy["standard"])
-
     def test_build_system_prompt_includes_post_type_and_day_hint(self) -> None:
         prompt = build_system_prompt("insight", "Monday")
         self.assertIn("POST TYPE: INSIGHT", prompt)
@@ -79,9 +74,9 @@ class CreatorStrategyTests(unittest.TestCase):
         issues = check_readability("We must leverage robust ecosystems to democratize seamless solutions.")
         self.assertTrue(issues)
 
-    def test_post_length_over_ceiling_fails(self) -> None:
+    def test_post_length_no_longer_enforces_a_ceiling(self) -> None:
         issues = check_post_length(" ".join(["word"] * 200), "relatable", "standard", None)
-        self.assertTrue(issues)
+        self.assertEqual(issues, [])
 
     def test_post_length_ignores_hashtag_lines(self) -> None:
         issues = check_post_length("Good hook.\n\nGood body.\n\n#Python #Data #AI", "inspiration", "standard", None)

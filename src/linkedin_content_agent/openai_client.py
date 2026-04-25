@@ -11,7 +11,6 @@ from linkedin_content_agent.content_strategy import (
     get_day_tone_hint,
     get_evidence_policy,
     get_format_instruction,
-    get_length_policy,
     get_template,
 )
 from linkedin_content_agent.day_contracts import DayContract
@@ -112,7 +111,6 @@ def build_system_prompt(
     type_note = str(profile.get("post_type_notes", {}).get(post_type, "")).strip()
     template = get_template(post_type)
     format_instruction = get_format_instruction(content_format)
-    length_policy = get_length_policy(post_type)
     day_hint = get_day_tone_hint(day_name) if day_name else ""
     evidence_policy = get_evidence_policy(post_type)
     banned_words = ", ".join(profile.get("banned_words", []))
@@ -143,21 +141,13 @@ def build_system_prompt(
     if format_instruction:
         sections.append(f"FORMAT INSTRUCTIONS\n{format_instruction}")
     sections.append(
-        "LENGTH POLICY\n"
-        f"- Standard max words: {length_policy['standard']}\n"
-        f"- Extended max words: {length_policy['extended']}\n"
-        f"- Max non-empty lines: {length_policy['max_lines']}\n"
-        "- Aim for standard mode by default.\n"
-        "- Use extended only if the concept loses honesty or clarity when compressed.\n"
-        "- If you use extended, provide a one-sentence justification in `length_mode_reason`."
+        "LENGTH GUIDANCE\n"
+        "- There is no hard word-count target for this post.\n"
+        "- Let the idea breathe when it needs space.\n"
+        "- Stay readable, specific, and sharp. Depth is welcome; padding is not.\n"
+        "- Use `length_mode` as a descriptive label only: choose `standard` for a tighter post and `extended` when the idea genuinely needs more room.\n"
+        "- `length_mode_reason` is optional. Use it only if a longer draft is important to the point."
     )
-    if post_type in {"relatable", "inspiration"}:
-        sections.append(
-            "SHORT-FORM SAFETY MARGIN\n"
-            f"- `{post_type}` is a short-form post type.\n"
-            f"- Do not write up to the ceiling. Land about 10 words under the {length_policy['standard']}-word limit.\n"
-            "- That safety margin applies to both the primary post and any `backup_text_post`."
-        )
     if day_hint:
         sections.append(f"TODAY'S TONE HINT\n{day_hint}")
     sections.append(
