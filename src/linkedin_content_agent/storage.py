@@ -36,6 +36,7 @@ class StorageBackend(ABC):
         creator_post_type: str,
         topic_pillar: str,
         content_format: str,
+        comment_insight_used: bool = False,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         raise NotImplementedError
@@ -168,6 +169,7 @@ class LocalHybridStorage(StorageBackend):
         creator_post_type: str,
         topic_pillar: str,
         content_format: str,
+        comment_insight_used: bool = False,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         json_path = self.outputs_dir / f"{context.run_id}.json"
@@ -189,6 +191,7 @@ class LocalHybridStorage(StorageBackend):
             primary_artifact=str(json_path),
             prompt_artifact=str(prompt_path),
             backup_titles=[backup.title for backup in generated_content.backups],
+            comment_insight_used=comment_insight_used,
             warnings=warnings,
         )
 

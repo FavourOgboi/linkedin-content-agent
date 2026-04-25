@@ -247,6 +247,16 @@ class ValidationTests(unittest.TestCase):
         issues = validate_truth_alignment(content, resolve_day_contract("Monday"), topic_context)
         self.assertTrue(any("echoing low-quality sources" in issue.lower() for issue in issues))
 
+    def test_generated_content_rejects_direct_forum_citation_leak(self) -> None:
+        content = self._valid_monday_content()
+        content.primary.draft_post = (
+            "The interesting part is not the launch itself.\n"
+            "HN commenters said it would break at scale, and that is the real issue.\n"
+            "The tradeoff is operational, not cosmetic."
+        )
+        issues = validate_generated_content(content, resolve_day_contract("Wednesday"))
+        self.assertTrue(any("forum commenters or threads directly" in issue.lower() for issue in issues))
+
     def test_saturday_accepts_natural_thinking_evolved_phrasing(self) -> None:
         content = self._valid_monday_content()
         content.primary.day = "Saturday"

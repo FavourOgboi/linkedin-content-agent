@@ -1,0 +1,27 @@
+[
+  {},
+  {
+    "data": {
+      "children": [
+        {
+          "data": {
+            "body": "Great pattern overall, but it breaks once the schema gets inconsistent across files.",
+            "score": 41
+          }
+        },
+        {
+          "data": {
+            "body": "In practice the real issue is cost and maintenance, not retrieval quality.",
+            "score": 17
+          }
+        },
+        {
+          "data": {
+            "body": "Why does nobody benchmark the workflow boundary itself?",
+            "score": 12
+          }
+        }
+      ]
+    }
+  }
+]

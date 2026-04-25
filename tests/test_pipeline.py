@@ -16,6 +16,7 @@ from linkedin_content_agent.config import AppConfig, SMTPConfig
 from linkedin_content_agent.models import (
     BackupIdea,
     CarouselSlide,
+    CommentInsight,
     DeliveryResult,
     FormatPlan,
     GeneratedContent,
@@ -632,6 +633,21 @@ class FakeEmailSender:
         return DeliveryResult(status=self.status, detail=self.detail)
 
 
+class FakeCommentHarvester:
+    def __init__(self, insight: CommentInsight | None):
+        self.insight = insight
+        self.calls: list[str] = []
+
+    def harvest(self, topic_context):
+        self.calls.append(topic_context.candidate.title)
+        return self.insight
+
+
+class FailingCommentHarvester:
+    def harvest(self, topic_context):
+        raise RuntimeError("comment source failed")
+
+
 class PipelineTests(unittest.TestCase):
     def _workspace_run_dir(self) -> Path:
         base = ROOT / "tests" / "_tmp"
@@ -1017,6 +1033,17 @@ class PipelineTests(unittest.TestCase):
                         ]
                     )
                 ],
+                comment_harvester=FakeCommentHarvester(
+                    CommentInsight(
+                        source="reddit:MachineLearning",
+                        comment_count=8,
+                        top_sentiment="skeptical",
+                        signal_strength="medium",
+                        key_debates=["Skeptics argue that the benchmark misses workflow reality."],
+                        strongest_pushback="The strongest pushback is that the benchmark ignores operations.",
+                        common_question="The recurring question is how this behaves in production.",
+                    )
+                ),
             )
 
             result = agent.run(
@@ -1026,6 +1053,74 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(model.generate_calls), 1)
             self.assertIn("Truth alignment contract", model.generate_calls[0] or "")
             self.assertEqual(result.generated_content.primary.length_mode, "standard")
+            self.assertIsNotNone(result.generated_content.comment_insight)
+            self.assertEqual(result.generated_content.comment_usage_mode, "angle_driver")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_harvests_comments_only_for_selected_topic(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            harvester = FakeCommentHarvester(
+                CommentInsight(
+                    source="reddit:MachineLearning",
+                    comment_count=6,
+                    top_sentiment="divided",
+                    signal_strength="medium",
+                    key_debates=["One recurring reaction is the workflow matters more than the headline."],
+                    strongest_pushback="The strongest pushback is that the examples are too narrow.",
+                    common_question="The recurring question is when this breaks at scale.",
+                )
+            )
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=PassingModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Selected topic", url="https://example.com/1"),
+                            self._signal(title="Backup topic", url="https://example.com/2"),
+                        ]
+                    )
+                ],
+                comment_harvester=harvester,
+            )
+
+            result = agent.run(
+                RunOptions(day_override="Wednesday", topic_override="Selected topic", post_type_override="commentary", format_override="text", send_email=False)
+            )
+
+            self.assertEqual(harvester.calls, ["Selected topic"])
+            self.assertTrue(result.summary.comment_insight_used)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_survives_comment_harvest_failure(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=PassingModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[FakeSource([self._signal(title="Selected topic", url="https://example.com/1")])],
+                comment_harvester=FailingCommentHarvester(),
+            )
+
+            result = agent.run(
+                RunOptions(day_override="Wednesday", topic_override="Selected topic", post_type_override="commentary", format_override="text", send_email=False)
+            )
+
+            self.assertFalse(result.summary.comment_insight_used)
+            self.assertIsNone(result.generated_content.comment_insight)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

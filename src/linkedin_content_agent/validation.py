@@ -203,6 +203,15 @@ COMMENTARY_TENSION_WORDS = (
     "except",
 )
 
+FORUM_CITATION_PATTERNS = (
+    "hn commenters",
+    "hacker news commenters",
+    "reddit commenters",
+    "reddit users said",
+    "the hn thread said",
+    "the reddit thread said",
+)
+
 
 def _collect_text(post: PostPackage) -> str:
     image_text = ""
@@ -333,6 +342,14 @@ def check_labeled_paragraphs(post_text: str) -> list[str]:
     return issues
 
 
+def check_forum_citation_leak(post_text: str) -> list[str]:
+    lowered = post_text.lower()
+    for pattern in FORUM_CITATION_PATTERNS:
+        if pattern in lowered:
+            return ["Public-facing copy must not cite forum commenters or threads directly. Internal comment insight should stay invisible to readers."]
+    return []
+
+
 def check_post_length(post_text: str, post_type: str, length_mode: str = "standard", length_mode_reason: str | None = None) -> list[str]:
     _ = (post_text, post_type, length_mode, length_mode_reason)
     return []
@@ -380,6 +397,7 @@ def validate_post_package(post: PostPackage, contract: DayContract, topic_contex
     issues.extend(check_readability(" ".join([post.hook, post.draft_post, post.why_this_works])))
     issues.extend(check_hook_discipline(visible_post_text, creator_post_type))
     issues.extend(check_labeled_paragraphs(visible_post_text))
+    issues.extend(check_forum_citation_leak(visible_post_text))
 
     if creator_post_type in {"insight", "commentary", "teaching"} and not any(
         token in combined for token in ("mistake", "insight", "unexpected", "tradeoff")

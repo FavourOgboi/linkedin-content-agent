@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from linkedin_content_agent.content_strategy import comment_usage_affects_subject
 from linkedin_content_agent.models import EmailPayload, GeneratedContent, RunSummary
 
 
@@ -67,6 +68,36 @@ def render_post_package(post, *, title: str) -> list[str]:
         post.why_this_works,
         "",
     ]
+
+
+def _comment_usage_explanation(usage_mode: str) -> str:
+    return {
+        "angle_driver": "Community tension drove the hook and main argument.",
+        "nuance_layer": "Community pushback sharpened the nuance or caveat in the post.",
+        "example_source": "The most common question in the comments framed what the post teaches.",
+        "tone_signal": "Comment sentiment was used only to calibrate whether the situation felt broadly recognizable.",
+        "ignore": "Comment insight was collected but not used in the public-facing copy.",
+    }.get(usage_mode, "Comment usage was not classified.")
+
+
+def render_comment_insight_lines(generated_content: GeneratedContent) -> list[str]:
+    insight = generated_content.comment_insight
+    if insight is None:
+        return []
+    lines = [
+        "## Comment Insight",
+        f"- Source: {insight.source}",
+        f"- Comment count: {insight.comment_count}",
+        f"- Sentiment: {insight.top_sentiment}",
+        f"- Signal strength: {insight.signal_strength}",
+        f"- Usage mode: {generated_content.comment_usage_mode}",
+        *[f"- Key debate: {item}" for item in insight.key_debates],
+        f"- Strongest pushback: {insight.strongest_pushback or 'None captured.'}",
+        f"- Common question: {insight.common_question or 'None captured.'}",
+        f"- How this shaped the post: {_comment_usage_explanation(generated_content.comment_usage_mode)}",
+        "",
+    ]
+    return lines
 
 
 def render_markdown(summary: RunSummary, generated_content: GeneratedContent, review_url: str | None = None) -> str:
@@ -152,6 +183,7 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         *[f"- Note: {item}" for item in generated_content.primary.self_audit.critic_notes],
         "",
         *credibility_lines,
+        *render_comment_insight_lines(generated_content),
         *originality_lines,
         *backup_text_lines,
         *backup_lines,
@@ -268,14 +300,32 @@ def render_email_payload(
                 else []
             ),
             *credibility_block,
+            *(
+                [
+                    "",
+                    "COMMENT INSIGHT",
+                    f"Source: {generated_content.comment_insight.source}",
+                    f"Comment count: {generated_content.comment_insight.comment_count}",
+                    f"Sentiment: {generated_content.comment_insight.top_sentiment}",
+                    f"Signal strength: {generated_content.comment_insight.signal_strength}",
+                    f"Usage mode: {generated_content.comment_usage_mode}",
+                    *[f"Key debate: {item}" for item in generated_content.comment_insight.key_debates],
+                    f"Strongest pushback: {generated_content.comment_insight.strongest_pushback or 'None captured.'}",
+                    f"Common question: {generated_content.comment_insight.common_question or 'None captured.'}",
+                    f"How this shaped the post: {_comment_usage_explanation(generated_content.comment_usage_mode)}",
+                ]
+                if generated_content.comment_insight is not None
+                else []
+            ),
             *originality_block,
             "",
             "BACKUP IDEAS",
             backup_block or "No backup ideas generated.",
         ]
     )
+    subject_suffix = " [+comments]" if comment_usage_affects_subject(generated_content.comment_usage_mode) else ""
     return EmailPayload(
-        subject=f"[LinkedIn Content Agent] {summary.day} - {summary.creator_post_type or generated_content.primary.post_type} - {summary.content_format.upper()}",
+        subject=f"[LinkedIn Content Agent] {summary.day} - {summary.creator_post_type or generated_content.primary.post_type} - {summary.content_format.upper()}{subject_suffix}",
         body_text=body,
         recipient=recipient,
     )

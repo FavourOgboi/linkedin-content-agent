@@ -8,6 +8,7 @@ from linkedin_content_agent.sources.base import (
     parse_reddit_json,
     safe_fetch,
 )
+from linkedin_content_agent.sources.comment_harvester import CommentHarvester, HNCommentSource, RedditCommentSource, summarize_comments
 
 __all__ = [
     "OfficialApiSourceAdapter",
@@ -18,4 +19,8 @@ __all__ = [
     "parse_feed_bytes",
     "parse_reddit_json",
     "safe_fetch",
+    "CommentHarvester",
+    "HNCommentSource",
+    "RedditCommentSource",
+    "summarize_comments",
 ]

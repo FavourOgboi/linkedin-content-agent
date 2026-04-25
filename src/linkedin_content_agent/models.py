@@ -20,6 +20,9 @@ CreatorPostType = Literal["insight", "relatable", "commentary", "teaching", "ins
 TopicPillar = Literal["ai_ml", "data_engineering", "python_backend", "beginner_practice", "career_insight", ""]
 ContentFormat = Literal["text", "photo", "screenshot", "carousel", "infographic"]
 LengthMode = Literal["standard", "extended"]
+CommentSentiment = Literal["excited", "skeptical", "divided", "practical", "unknown"]
+CommentSignalStrength = Literal["low", "medium", "high"]
+CommentUsageMode = Literal["angle_driver", "nuance_layer", "example_source", "tone_signal", "ignore"]
 
 
 @dataclass(slots=True)
@@ -116,6 +119,17 @@ class TruthProfile:
 
 
 @dataclass(slots=True)
+class CommentInsight:
+    source: str
+    comment_count: int
+    top_sentiment: CommentSentiment
+    signal_strength: CommentSignalStrength
+    key_debates: list[str]
+    strongest_pushback: str
+    common_question: str
+
+
+@dataclass(slots=True)
 class TopicContext:
     candidate: TopicCandidate
     dossier: TopicDossier
@@ -124,6 +138,8 @@ class TopicContext:
     day_tone_hint: str = ""
     topic_pillar: TopicPillar = ""
     content_format: ContentFormat = "text"
+    comment_insight: CommentInsight | None = None
+    comment_usage_mode: CommentUsageMode = "ignore"
 
 
 @dataclass(slots=True)
@@ -204,6 +220,8 @@ class GeneratedContent:
     truth_profile: TruthProfile | None = None
     format_plan: FormatPlan | None = None
     backup_text_post: PostPackage | None = None
+    comment_insight: CommentInsight | None = None
+    comment_usage_mode: CommentUsageMode = "ignore"
 
 
 @dataclass(slots=True)
@@ -238,6 +256,7 @@ class RunSummary:
     primary_artifact: str
     prompt_artifact: str
     backup_titles: list[str]
+    comment_insight_used: bool = False
     warnings: list[str] = field(default_factory=list)
 
 

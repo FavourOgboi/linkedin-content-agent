@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from linkedin_content_agent.config import AppConfig
-from linkedin_content_agent.content_strategy import get_day_tone_hint, passes_topic_filter, select_content_format, select_post_type
+from linkedin_content_agent.content_strategy import get_comment_usage, get_day_tone_hint, passes_topic_filter, select_content_format, select_post_type
 from linkedin_content_agent.day_contracts import resolve_day_contract, resolve_topic_choice
 from linkedin_content_agent.emailer import SMTPEmailSender
 from linkedin_content_agent.models import DeliveryResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicContext, TopicSelection
@@ -15,6 +15,7 @@ from linkedin_content_agent.rendering import render_email_payload
 from linkedin_content_agent.scoring import rank_signals
 from linkedin_content_agent.sources.base import safe_fetch
 from linkedin_content_agent.sources.catalog import build_default_sources
+from linkedin_content_agent.sources.comment_harvester import CommentHarvester
 from linkedin_content_agent.storage import LocalHybridStorage, StorageBackend
 from linkedin_content_agent.truth_engine import build_topic_contexts
 from linkedin_content_agent.utils import slugify, utc_now
@@ -78,12 +79,14 @@ class ContentAgent:
         model: ContentModel,
         email_sender: SMTPEmailSender,
         source_adapters: list[object],
+        comment_harvester: CommentHarvester | None = None,
     ) -> None:
         self.config = config
         self.storage = storage
         self.model = model
         self.email_sender = email_sender
         self.source_adapters = source_adapters
+        self.comment_harvester = comment_harvester
 
     @classmethod
     def from_config(cls, config: AppConfig) -> "ContentAgent":
@@ -93,6 +96,7 @@ class ContentAgent:
             model=OpenAIContentModel(config),
             email_sender=SMTPEmailSender(config.smtp),
             source_adapters=build_default_sources(config),
+            comment_harvester=CommentHarvester(),
         )
 
     def run(self, options: RunOptions) -> AgentRunResult:
@@ -160,6 +164,7 @@ class ContentAgent:
             backup_titles=selection.backup_titles,
             caution_notes=selection.caution_notes,
         )
+        self._attach_comment_insight(effective_selection, topic_contexts)
 
         generated_content, accepted_selection, accepted_topic_context = self._generate_with_truth_and_originality_guard(
             contract,
@@ -204,6 +209,7 @@ class ContentAgent:
             creator_post_type=creator_post_type,
             topic_pillar=accepted_topic_context.topic_pillar,
             content_format=content_format,
+            comment_insight_used=generated_content.comment_insight is not None,
             review_url=review_url,
         )
         return AgentRunResult(
@@ -331,6 +337,35 @@ class ContentAgent:
         ordered.extend(item for item in topic_contexts if item.candidate.title != topic_context.candidate.title)
         return ordered[:5]
 
+    def _attach_comment_insight(self, selection: TopicSelection, topic_contexts: list[TopicContext]) -> None:
+        if self.comment_harvester is None:
+            return
+
+        selected_context = next(
+            (context for context in topic_contexts if context.candidate.title == selection.selected_title),
+            None,
+        )
+        if selected_context is None:
+            return
+
+        selected_context.comment_usage_mode = get_comment_usage(selected_context.creator_post_type)
+        if selected_context.comment_usage_mode == "ignore":
+            return
+
+        try:
+            insight = self.comment_harvester.harvest(selected_context)
+        except Exception:
+            return
+        if insight is None:
+            return
+
+        selected_context.comment_insight = insight
+        if insight.signal_strength == "low":
+            if selected_context.comment_usage_mode == "angle_driver":
+                selected_context.comment_usage_mode = "nuance_layer"
+            else:
+                selected_context.comment_usage_mode = "ignore"
+
     def _assess_originality(
         self,
         contract: object,
@@ -369,6 +404,15 @@ class ContentAgent:
             lines.append(f"- Dossier summary: {dossier.consensus_summary}")
         for note in dossier.disagreement_notes:
             lines.append(f"- Disagreement: {note}")
+        if topic_context.comment_insight is not None:
+            lines.append(
+                f"- Comment insight: {topic_context.comment_usage_mode} via {topic_context.comment_insight.source} "
+                f"({topic_context.comment_insight.comment_count} comments, {topic_context.comment_insight.signal_strength} signal)."
+            )
+            if topic_context.comment_insight.strongest_pushback:
+                lines.append(f"- Strongest pushback: {topic_context.comment_insight.strongest_pushback}")
+            if topic_context.comment_insight.common_question:
+                lines.append(f"- Common question: {topic_context.comment_insight.common_question}")
         for move in truth_profile.required_copy_moves:
             lines.append(f"- Required copy move: {move}")
         for move in truth_profile.forbidden_moves:
@@ -460,12 +504,18 @@ class ContentAgent:
                     generated_content.topic_dossier = topic_context.dossier
                     generated_content.truth_profile = topic_context.truth_profile
                     generated_content.originality_audit = originality_audit
+                    generated_content.comment_insight = topic_context.comment_insight
+                    generated_content.comment_usage_mode = topic_context.comment_usage_mode
                     generated_content.primary.self_audit.critic_notes.append(
                         f"Authority: {topic_context.truth_profile.authority_mode} / {topic_context.truth_profile.source_ownership}."
                     )
                     generated_content.primary.self_audit.critic_notes.append(
                         f"Originality: {originality_audit.transformation_type} ({originality_audit.originality_score}/10)."
                     )
+                    if topic_context.comment_insight is not None and topic_context.comment_usage_mode != "ignore":
+                        generated_content.primary.self_audit.critic_notes.append(
+                            f"Comments: {topic_context.comment_usage_mode} via {topic_context.comment_insight.source}."
+                        )
                     return generated_content, current_selection, topic_context
 
                 last_issues = originality_issues

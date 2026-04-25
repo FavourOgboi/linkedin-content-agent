@@ -21,6 +21,7 @@ from linkedin_content_agent.content_strategy import (
 )
 from linkedin_content_agent.models import (
     BackupIdea,
+    CommentInsight,
     GeneratedContent,
     ImageSuggestion,
     PostPackage,
@@ -29,7 +30,7 @@ from linkedin_content_agent.models import (
     SourceReference,
 )
 from linkedin_content_agent.openai_client import build_system_prompt, normalize_originality_score
-from linkedin_content_agent.rendering import render_markdown
+from linkedin_content_agent.rendering import render_email_payload, render_markdown
 from linkedin_content_agent.storage import LocalHybridStorage
 from linkedin_content_agent.validation import check_post_length, check_readability
 
@@ -155,10 +156,72 @@ class RenderingAndStorageTests(unittest.TestCase):
                 ),
             ],
             selected_topic_reason="Strong creator-fit topic.",
+            comment_insight=CommentInsight(
+                source="reddit:MachineLearning",
+                comment_count=9,
+                top_sentiment="skeptical",
+                signal_strength="medium",
+                key_debates=["Skeptics argue that schema drift ruins the pattern quickly."],
+                strongest_pushback="The strongest pushback is that naming inconsistency kills recall.",
+                common_question="The recurring question is when vectors become necessary.",
+            ),
+            comment_usage_mode="nuance_layer",
         )
 
         markdown = render_markdown(summary, content)
         self.assertIn("Image suggestion (screenshot)", markdown)
+        self.assertIn("Comment Insight", markdown)
+
+    def test_render_email_payload_marks_subject_when_comments_shape_post(self) -> None:
+        summary = RunSummary(
+            run_id="test-run",
+            created_at="2026-04-25T00:00:00+00:00",
+            day="Wednesday",
+            post_type="AI / Industry Insight",
+            creator_post_type="commentary",
+            topic_pillar="ai_ml",
+            content_format="text",
+            selected_topic="Why eval headlines hide workflow cost",
+            status="awaiting_review",
+            source_count=1,
+            delivery_status="skipped",
+            primary_artifact="output.json",
+            prompt_artifact="prompt.json",
+            backup_titles=["Backup one", "Backup two"],
+            warnings=[],
+        )
+        content = GeneratedContent(
+            primary=PostPackage(
+                day="Wednesday",
+                post_type="commentary",
+                hook="The release headline is not the interesting part.",
+                core_idea=[
+                    "The hidden issue is workflow cost.",
+                    "The pushback is fair when operations are ignored.",
+                    "The tradeoff is speed versus reliability.",
+                ],
+                draft_post="The release headline is not the interesting part.\nThe hidden issue is the workflow cost nobody budgets for.",
+                visual_suggestion="Simple workflow diagram.",
+                why_this_works="It makes one clear argument.",
+                source_refs=[SourceReference(source="rss:test", title="Source", url="https://example.com")],
+                self_audit=SelfAudit(passed_checks=["Clear argument."], critic_notes=[]),
+            ),
+            backups=[],
+            selected_topic_reason="Strong creator-fit topic.",
+            comment_insight=CommentInsight(
+                source="hackernews",
+                comment_count=12,
+                top_sentiment="divided",
+                signal_strength="high",
+                key_debates=["One recurring reaction is that the benchmarks miss operational cost."],
+                strongest_pushback="The strongest pushback is that the evaluation ignores real workloads.",
+                common_question="The recurring question is what this changes in production.",
+            ),
+            comment_usage_mode="angle_driver",
+        )
+        payload = render_email_payload(summary, content, "me@example.com")
+        self.assertIn("[+comments]", payload.subject)
+        self.assertIn("COMMENT INSIGHT", payload.body_text)
 
     def test_storage_load_recent_runs_returns_newest_first(self) -> None:
         temp_dir = self._workspace_run_dir()

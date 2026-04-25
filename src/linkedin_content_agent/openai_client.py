@@ -177,6 +177,46 @@ class ContentModel(Protocol):
     def choose_topic(self, contract: DayContract, topic_contexts: list[TopicContext], topic_override: str | None = None) -> TopicSelection:
         raise NotImplementedError
 
+
+def _comment_prompt_block(topic_context: TopicContext) -> str:
+    insight = topic_context.comment_insight
+    usage_mode = topic_context.comment_usage_mode
+    if insight is None or usage_mode == "ignore":
+        return ""
+
+    debates = "\n".join(f"- {item}" for item in insight.key_debates[:3]) or "- No clear debate extracted."
+    header = (
+        "COMMENT INSIGHT\n"
+        f"- Source: {insight.source}\n"
+        f"- Comment count: {insight.comment_count}\n"
+        f"- Sentiment: {insight.top_sentiment}\n"
+        f"- Signal strength: {insight.signal_strength}\n"
+        f"- Strongest pushback: {insight.strongest_pushback or 'None captured.'}\n"
+        f"- Common question: {insight.common_question or 'None captured.'}\n"
+        "Key debates:\n"
+        f"{debates}"
+    )
+
+    instructions = {
+        "angle_driver": (
+            "Use the comment tension as the angle driver for the post. The headline is context, not the hook.\n"
+            "Do not mention Reddit, Hacker News, commenters, or a thread directly. Write the tension as your own informed perspective."
+        ),
+        "nuance_layer": (
+            "Keep your own perspective as the main angle. Use the strongest pushback to add nuance or an honest caveat.\n"
+            "Do not mention Reddit, Hacker News, commenters, or a thread directly."
+        ),
+        "example_source": (
+            "Use the common question or confusion to frame what the post teaches.\n"
+            "Do not mention Reddit, Hacker News, commenters, or a thread directly."
+        ),
+        "tone_signal": (
+            "Use the comment sentiment only to calibrate how recognizable and grounded the situation feels.\n"
+            "Do not mention Reddit, Hacker News, commenters, or a thread directly."
+        ),
+    }
+    return "\n\n".join([header, instructions.get(usage_mode, "")]).strip()
+
     def generate_content(
         self,
         *,
@@ -371,9 +411,13 @@ class OpenAIContentModel:
             "You must add a deeper mechanism, contradiction, or applied system explanation that makes the idea feel owned rather than aggregated.",
             "Never present an external experiment as if the creator ran it.",
             "If explicit provenance is required, make that clear in the hook or first two lines.",
+            "If comment insight is provided, let it sharpen the angle silently. Do not write like a forum recap.",
             "Image suggestions should feel native to the chosen format.",
             *_day_specific_generation_hints(contract),
         ]
+        comment_block = _comment_prompt_block(topic_context)
+        if comment_block:
+            prompt_parts.extend(["", comment_block])
         if revision_feedback:
             prompt_parts.extend(
                 [

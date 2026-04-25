@@ -10,6 +10,7 @@ from typing import Any, Literal
 CreatorPostType = Literal["insight", "relatable", "commentary", "teaching", "inspiration"]
 TopicPillar = Literal["ai_ml", "data_engineering", "python_backend", "beginner_practice", "career_insight", ""]
 ContentFormat = Literal["text", "photo", "screenshot", "carousel", "infographic"]
+CommentUsageMode = Literal["angle_driver", "nuance_layer", "example_source", "tone_signal", "ignore"]
 
 CREATOR_POST_TYPES: tuple[CreatorPostType, ...] = (
     "insight",
@@ -163,6 +164,14 @@ ORIGINALITY_THRESHOLDS: dict[CreatorPostType, float] = {
     "inspiration": 6.2,
 }
 
+COMMENT_INSIGHT_USAGE: dict[CreatorPostType, CommentUsageMode] = {
+    "commentary": "angle_driver",
+    "insight": "nuance_layer",
+    "teaching": "example_source",
+    "relatable": "tone_signal",
+    "inspiration": "ignore",
+}
+
 PILLAR_KEYWORDS: dict[str, tuple[str, ...]] = {
     "data_engineering": (
         "data pipeline",
@@ -290,6 +299,15 @@ def get_evidence_policy(post_type: str) -> dict[str, Any]:
 
 def get_originality_threshold(post_type: str) -> float:
     return float(ORIGINALITY_THRESHOLDS.get(post_type, ORIGINALITY_THRESHOLDS["insight"]))
+
+
+def get_comment_usage(post_type: str) -> CommentUsageMode:
+    normalized = normalize_creator_post_type(post_type)
+    return COMMENT_INSIGHT_USAGE.get(normalized, "ignore")
+
+
+def comment_usage_affects_subject(usage_mode: str) -> bool:
+    return usage_mode in {"angle_driver", "nuance_layer", "example_source"}
 
 
 def get_banned_words() -> tuple[str, ...]:
