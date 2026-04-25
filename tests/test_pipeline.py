@@ -407,7 +407,6 @@ class DeterministicRetryModel(PassingModel):
         self.generate_calls.append(revision_feedback)
         if len(self.generate_calls) > 1:
             self._test_case.assertIn("Return exactly 3 to 5 `core_idea` bullets", revision_feedback)
-            self._test_case.assertIn("For Saturday, explicitly show thinking evolution", revision_feedback)
             return build_generated_content(
                 contract,
                 selection,
@@ -561,6 +560,8 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(result.artifacts.json_path.exists())
             self.assertTrue(result.artifacts.markdown_path.exists())
             self.assertTrue(result.artifacts.prompt_path.exists())
+            self.assertTrue(result.summary.creator_post_type)
+            self.assertTrue(result.summary.topic_pillar)
             self.assertIsNotNone(result.generated_content.originality_audit)
             self.assertIsNotNone(result.generated_content.truth_profile)
             self.assertIsNotNone(result.generated_content.topic_dossier)
@@ -571,6 +572,8 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("truth_profile", payload["generated_content"])
             self.assertIn("topic_dossier", payload["generated_content"])
             self.assertEqual(payload["generated_content"]["originality_audit"]["decision"], "approve")
+            self.assertEqual(payload["summary"]["creator_post_type"], result.summary.creator_post_type)
+            self.assertEqual(payload["summary"]["topic_pillar"], result.summary.topic_pillar)
 
             review = record_review(storage, run_id=result.summary.run_id, decision="approved", notes="Strong analyst angle.")
             self.assertEqual(review.decision, "approved")
@@ -649,6 +652,38 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("originality", (model.generate_calls[1] or "").lower())
             self.assertEqual(result.generated_content.originality_audit.decision, "approve")
             self.assertIn("protocol breakage", result.generated_content.primary.hook.lower())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_post_type_override_wins(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=PassingModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(RunOptions(day_override="Tuesday", post_type_override="teaching", send_email=False))
+
+            self.assertEqual(result.summary.creator_post_type, "teaching")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

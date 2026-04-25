@@ -3,6 +3,12 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 import re
 
+from linkedin_content_agent.content_strategy import (
+    get_banned_words,
+    get_evidence_policy,
+    get_originality_threshold,
+    normalize_creator_post_type,
+)
 from linkedin_content_agent.day_contracts import DayContract
 from linkedin_content_agent.models import BackupIdea, GeneratedContent, OriginalityAudit, PostPackage, TopicCandidate, TopicContext
 
@@ -79,12 +85,15 @@ MODEL_NAME_RE = re.compile(r"\b(?:gpt|claude|gemini|llama|mistral|o\d+)[- ]?[a-z
 FIRST_PERSON_EXPERIMENT_PATTERNS = (
     "i tested",
     "i ran",
+    "i measured",
+    "i benchmarked",
+    "my benchmark",
+    "my survey",
     "in my run",
-    "i built",
     "what broke for me",
-    "i expected",
-    "i tried using",
-    "my experiment",
+    "in my experiment",
+    "our results",
+    "in my dataset",
 )
 
 PROVENANCE_PATTERNS = (
@@ -157,14 +166,35 @@ SATURDAY_EVOLUTION_PATTERNS = (
     "that changed how i",
 )
 
+PROMOTIONAL_PATTERNS = (
+    "book a call",
+    "dm me",
+    "join my course",
+    "buy now",
+    "sign up today",
+    "limited spots",
+    "work with me",
+)
+
 
 def _collect_text(post: PostPackage) -> str:
+    image_text = ""
+    if post.image_suggestion is not None:
+        image_text = " ".join(
+            [
+                post.image_suggestion.type,
+                post.image_suggestion.description,
+                post.image_suggestion.how_to_create,
+                post.image_suggestion.why_it_works,
+            ]
+        )
     return " ".join(
         [
             post.hook,
             *post.core_idea,
             post.draft_post,
             post.visual_suggestion,
+            image_text,
             post.why_this_works,
             *post.self_audit.passed_checks,
             *post.self_audit.critic_notes,
@@ -218,9 +248,39 @@ def fallback_originality_audit(candidate: TopicCandidate, generated_content: Gen
     )
 
 
-def validate_post_package(post: PostPackage, contract: DayContract) -> list[str]:
+def check_readability(post_text: str) -> list[str]:
+    issues: list[str] = []
+    sentences = [sentence.strip() for sentence in post_text.replace("\n", ". ").split(".") if sentence.strip()]
+    words = post_text.split()
+    avg_sentence_length = len(words) / max(len(sentences), 1)
+    banned_words = [word for word in get_banned_words() if word and word in post_text.lower()]
+    long_words = [word for word in words if len(word.strip(".,!?")) > 12]
+
+    if avg_sentence_length > 22:
+        issues.append(f"Sentences are too long on average ({avg_sentence_length:.0f} words). Break them up.")
+    if banned_words:
+        issues.append(f"Banned corporate words found: {sorted(set(banned_words))}. Remove them.")
+    if len(long_words) > 6:
+        issues.append(f"The draft uses too many dense words for the target voice: {long_words[:4]}.")
+    return issues
+
+
+def check_provenance_explicit(post_text: str, post_type: str, topic_context: TopicContext) -> list[str]:
+    policy = get_evidence_policy(post_type)
+    if not policy["requires_source"]:
+        if topic_context.truth_profile.authority_mode not in {"amplifier", "exploratory"}:
+            return []
+        if topic_context.truth_profile.risk_level == "low":
+            return []
+    if not _contains_any(post_text.lower(), PROVENANCE_PATTERNS):
+        return ["Draft does not make source provenance explicit enough for this post type and authority mode."]
+    return []
+
+
+def validate_post_package(post: PostPackage, contract: DayContract, topic_context: TopicContext | None = None) -> list[str]:
     issues: list[str] = []
     combined = _collect_text(post)
+    creator_post_type = normalize_creator_post_type(post.post_type)
 
     if not post.hook.strip():
         issues.append("Hook is empty.")
@@ -237,51 +297,51 @@ def validate_post_package(post: PostPackage, contract: DayContract) -> list[str]
         issues.append("Contains vague motivational language.")
     if _contains_any(combined, BASIC_EXPLANATION_PATTERNS):
         issues.append("Contains basic explanatory filler.")
-    if EMOJI_RE.search(combined):
-        issues.append("Contains emoji characters.")
-    if not any(marker in combined for marker in CONCRETE_MARKERS) and not re.search(r"\d", combined):
+    if len(EMOJI_RE.findall(post.hook + " " + post.draft_post)) > 2:
+        issues.append("Contains more than two emoji characters.")
+    if creator_post_type in {"insight", "commentary", "teaching"} and not any(
+        marker in combined for marker in CONCRETE_MARKERS
+    ) and not re.search(r"\d", combined):
         issues.append("Missing a concrete observation, technical term, or measurable detail.")
+    issues.extend(check_readability(" ".join([post.hook, post.draft_post, post.why_this_works])))
 
     draft_lines = [line.strip() for line in post.draft_post.splitlines() if line.strip()]
-    if contract.max_lines is not None and len(draft_lines) > contract.max_lines:
-        issues.append(f"{contract.day} posts must stay under {contract.max_lines} non-empty lines.")
+    if creator_post_type == "teaching" and len(draft_lines) > 8:
+        issues.append("Teaching posts should stay focused and short. Reduce the number of non-empty lines.")
+    if creator_post_type == "relatable" and len(draft_lines) > 7:
+        issues.append("Relatable posts should stay short and quick to scan.")
 
-    if contract.day == "Monday":
-        if not any(token in combined for token in ("broke", "failed", "surpris", "unexpected")):
-            issues.append("Monday post must mention what broke or what was surprising.")
-        if not any(token in combined for token in ("lesson", "learned", "result")):
-            issues.append("Monday post must include a result and lesson.")
-    elif contract.day == "Wednesday":
-        if "people get wrong" not in combined and "mistake" not in combined:
-            issues.append("Wednesday post must state what people get wrong.")
-    elif contract.day == "Thursday":
-        if "what this actually changes" not in combined and "this changes" not in combined:
-            issues.append("Thursday post must explain what this actually changes.")
-        if "implication" not in combined and "means" not in combined:
-            issues.append("Thursday post must include implications.")
-    elif contract.day == "Friday":
-        if not any(token in combined for token in ("common belief", "most people", "popular advice", "i disagree", "we should stop")):
-            issues.append("Friday post must challenge a common belief.")
-    elif contract.day == "Saturday":
-        if not any(token in combined for token in SATURDAY_EVOLUTION_PATTERNS):
-            issues.append("Saturday post must show how thinking evolved.")
-    elif contract.day == "Sunday":
-        if "struggle" not in combined and "hard part" not in combined:
-            issues.append("Sunday post must include struggle.")
-        if "insight" not in combined and "learned" not in combined:
-            issues.append("Sunday post must include insight.")
-
-    if not any(token in combined for token in ("mistake", "insight", "unexpected", "tradeoff")):
+    if creator_post_type in {"insight", "commentary", "teaching"} and not any(
+        token in combined for token in ("mistake", "insight", "unexpected", "tradeoff")
+    ):
         issues.append("Post must include at least one mistake, insight, unexpected result, or tradeoff.")
+
+    if contract.day in {"Saturday", "Sunday"} and _contains_any(combined, PROMOTIONAL_PATTERNS):
+        issues.append("Reflective/lighter days must not be promotional or salesy.")
+
+    if creator_post_type == "commentary" and topic_context is not None:
+        headline_similarity = _headline_similarity(post.hook, topic_context.candidate.title)
+        if headline_similarity >= 0.72:
+            issues.append("Commentary posts cannot reuse the source headline without a real take.")
 
     return issues
 
 
 def validate_backup_idea(backup: BackupIdea) -> list[str]:
     issues: list[str] = []
-    combined = " ".join((backup.title, backup.angle, backup.hook, backup.why_now, backup.visual_suggestion)).lower()
-    if EMOJI_RE.search(combined):
-        issues.append("Backup idea contains emoji characters.")
+    image_text = ""
+    if backup.image_suggestion is not None:
+        image_text = " ".join(
+            [
+                backup.image_suggestion.type,
+                backup.image_suggestion.description,
+                backup.image_suggestion.how_to_create,
+                backup.image_suggestion.why_it_works,
+            ]
+        )
+    combined = " ".join((backup.title, backup.angle, backup.hook, backup.why_now, backup.visual_suggestion, image_text)).lower()
+    if len(EMOJI_RE.findall(combined)) > 2:
+        issues.append("Backup idea contains more than two emoji characters.")
     if _contains_any(combined, HYPE_PATTERNS):
         issues.append("Backup idea contains banned hype language.")
     return issues
@@ -296,17 +356,21 @@ def validate_originality(
     combined = _collect_text(generated_content.primary)
     hook = generated_content.primary.hook
     claim_text = " ".join([generated_content.primary.hook, *generated_content.primary.core_idea[:2]])
+    creator_post_type = normalize_creator_post_type(generated_content.primary.post_type)
     source_titles = _source_titles(candidate)
     hook_similarity = max(_headline_similarity(hook, title) for title in source_titles)
     claim_similarity = max(_headline_similarity(claim_text, title) for title in source_titles)
     has_mechanism = any(marker in combined for marker in DEEP_MECHANISM_MARKERS)
+    threshold = get_originality_threshold(creator_post_type)
 
-    if hook_similarity >= 0.72:
+    if creator_post_type == "commentary" and hook_similarity >= 0.72:
+        issues.append("Commentary hook is too similar to the source headline framing.")
+    elif hook_similarity >= 0.86:
         issues.append("Hook is too similar to the source headline framing.")
-    if claim_similarity >= 0.5 and not has_mechanism:
+    if creator_post_type in {"insight", "commentary", "teaching"} and claim_similarity >= 0.5 and not has_mechanism:
         issues.append("Draft mirrors the source claim without a distinct why/how layer.")
-    if audit.originality_score < 7.0:
-        issues.append("Originality score is below 7.")
+    if audit.originality_score < threshold:
+        issues.append(f"Originality score {audit.originality_score:.2f} is below {threshold:.2f} for post type '{creator_post_type}'.")
     if audit.decision != "approve":
         issues.append("Originality audit rejected the draft.")
     if not audit.new_mechanism_or_insight.strip():
@@ -327,16 +391,18 @@ def validate_truth_alignment(
     issues: list[str] = []
     post = generated_content.primary
     combined = _collect_text(post)
+    creator_post_type = normalize_creator_post_type(post.post_type)
     truth_profile = topic_context.truth_profile
     dossier = topic_context.dossier
     source_claim_text = " ".join(dossier.claim_summaries).lower()
 
-    if truth_profile.source_ownership in {"second_hand", "general_knowledge"}:
-        if _contains_any(combined, FIRST_PERSON_EXPERIMENT_PATTERNS):
-            issues.append("Draft uses first-person experiment language without first-hand evidence.")
+    if truth_profile.source_ownership in {"second_hand", "general_knowledge"} and _contains_any(
+        combined,
+        FIRST_PERSON_EXPERIMENT_PATTERNS,
+    ):
+        issues.append("Draft uses first-person experiment language without first-hand evidence.")
 
-    if truth_profile.requires_explicit_provenance and not _contains_any(combined, PROVENANCE_PATTERNS):
-        issues.append("Draft does not make source provenance explicit enough for the assigned authority mode.")
+    issues.extend(check_provenance_explicit(combined, creator_post_type, topic_context))
 
     if not truth_profile.allows_exact_metrics and METRIC_RE.search(combined):
         issues.append("Draft includes exact metrics without dossier support.")
@@ -354,12 +420,6 @@ def validate_truth_alignment(
         if any(term in combined for term in high_risk_terms):
             issues.append("Light posts cannot carry high-risk benchmark, safety, or political claims.")
 
-    if contract.day in {"Monday", "Sunday"} and truth_profile.authority_mode != "builder" and _contains_any(
-        combined,
-        FIRST_PERSON_EXPERIMENT_PATTERNS,
-    ):
-        issues.append("This day was downgraded from Builder authority, so the draft cannot sound first-hand.")
-
     if truth_profile.risk_level == "high" or truth_profile.evidence_strength == "weak" or truth_profile.conflict_level == "high":
         if (_contains_any(combined, UNIVERSAL_PATTERNS) or _contains_any(combined, CAUSAL_PATTERNS)) and not _contains_any(
             combined,
@@ -374,14 +434,18 @@ def validate_truth_alignment(
         issues.append("Draft references model names or versions not present in the supporting dossier.")
 
     if truth_profile.authority_mode == "applied_analyst" and truth_profile.source_ownership == "second_hand":
-        if "i tested" in combined or "i built" in combined:
+        if any(pattern in combined for pattern in ("i tested", "i benchmarked", "i measured", "in my dataset", "our results")):
             issues.append("Applied analyst mode cannot imply the creator personally ran the underlying experiment.")
 
     return issues
 
 
-def validate_generated_content(generated_content: GeneratedContent, contract: DayContract) -> list[str]:
-    issues = validate_post_package(generated_content.primary, contract)
+def validate_generated_content(
+    generated_content: GeneratedContent,
+    contract: DayContract,
+    topic_context: TopicContext | None = None,
+) -> list[str]:
+    issues = validate_post_package(generated_content.primary, contract, topic_context)
     if len(generated_content.backups) != 2:
         issues.append("Exactly two backup ideas are required.")
     for backup in generated_content.backups:

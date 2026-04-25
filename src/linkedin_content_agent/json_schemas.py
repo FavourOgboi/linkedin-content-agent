@@ -3,13 +3,11 @@ from __future__ import annotations
 
 DAY_ENUM = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 POST_TYPE_ENUM = [
-    "Build / Experiment",
-    "Micro-Teach",
-    "Knowledge / Carousel",
-    "AI / Industry Insight",
-    "Thinking / Conviction",
-    "Thinking / Reflection",
-    "Build Story",
+    "insight",
+    "relatable",
+    "commentary",
+    "teaching",
+    "inspiration",
 ]
 TRANSFORMATION_TYPE_ENUM = ["reframed", "deepened", "challenged", "applied"]
 ORIGINALITY_DECISION_ENUM = ["approve", "reject"]
@@ -36,6 +34,18 @@ SELF_AUDIT_SCHEMA = {
     "additionalProperties": False,
 }
 
+IMAGE_SUGGESTION_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "type": {"type": "string"},
+        "description": {"type": "string"},
+        "how_to_create": {"type": "string"},
+        "why_it_works": {"type": "string"},
+    },
+    "required": ["type", "description", "how_to_create", "why_it_works"],
+    "additionalProperties": False,
+}
+
 POST_PACKAGE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -45,6 +55,7 @@ POST_PACKAGE_SCHEMA = {
         "core_idea": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 5},
         "draft_post": {"type": "string"},
         "visual_suggestion": {"type": "string"},
+        "image_suggestion": IMAGE_SUGGESTION_SCHEMA,
         "why_this_works": {"type": "string"},
         "source_refs": {"type": "array", "items": SOURCE_REFERENCE_SCHEMA, "minItems": 1},
         "self_audit": SELF_AUDIT_SCHEMA,
@@ -56,6 +67,7 @@ POST_PACKAGE_SCHEMA = {
         "core_idea",
         "draft_post",
         "visual_suggestion",
+        "image_suggestion",
         "why_this_works",
         "source_refs",
         "self_audit",
@@ -71,8 +83,9 @@ BACKUP_IDEA_SCHEMA = {
         "hook": {"type": "string"},
         "why_now": {"type": "string"},
         "visual_suggestion": {"type": "string"},
+        "image_suggestion": IMAGE_SUGGESTION_SCHEMA,
     },
-    "required": ["title", "angle", "hook", "why_now", "visual_suggestion"],
+    "required": ["title", "angle", "hook", "why_now", "visual_suggestion", "image_suggestion"],
     "additionalProperties": False,
 }
 

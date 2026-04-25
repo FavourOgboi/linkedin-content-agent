@@ -1,13 +1,15 @@
 # LinkedIn Content Agent V1
 
-This project generates one day-specific LinkedIn post package plus two backup ideas from public AI/data signals, then archives the run locally and emails it for human review.
+This project generates one creator-first LinkedIn post package plus two backup ideas from public tech/data signals, then archives the run locally and emails it for human review.
 
 ## What It Does
 
 - Collects compliant public signals from RSS, Hacker News, Reddit, and optional YouTube feeds
+- Selects a creator post type (`insight`, `relatable`, `commentary`, `teaching`, `inspiration`) with stable day-based weighting
 - Builds a topic dossier for shortlisted angles, including supporting or conflicting sources
-- Assigns a truth profile so the draft knows whether it should sound like a builder, applied analyst, amplifier, or exploratory voice
+- Assigns a truth profile so the draft knows whether it should sound like a builder, applied analyst, amplifier, exploratory voice, or light reflection
 - Uses the OpenAI Responses API with structured JSON outputs
+- Loads a tracked voice profile from `config/voice_profile.json`
 - Runs deterministic and model-based anti-generic checks
 - Runs separate truth-alignment and originality guards before anything ships
 - Archives every run to JSONL, Markdown, JSON, and a rebuildable SQLite cache
@@ -39,6 +41,12 @@ python -m unittest discover -s tests -v
 
 ```bash
 python -m linkedin_content_agent.cli run --day Monday --topic "Using LLMs for data cleaning" --skip-email
+```
+
+You can also force the creator post type for a run:
+
+```bash
+python -m linkedin_content_agent.cli run --day Tuesday --post-type teaching --skip-email
 ```
 
 6. Record a review decision:
@@ -90,6 +98,12 @@ Let the system auto-pick the topic for today:
 python -m linkedin_content_agent.cli run --skip-email
 ```
 
+Let the system auto-pick the topic, but force a creator mode:
+
+```bash
+python -m linkedin_content_agent.cli run --post-type commentary --skip-email
+```
+
 Record your review decision after a run:
 
 ```bash
@@ -104,18 +118,36 @@ Artifacts are written locally to:
 - `data/artifacts/` for the rebuildable SQLite cache
 - `data/run_notes/` for optional first-hand experiment notes
 
+## Creator-First Strategy
+
+The agent now separates weekday tone from creator post type:
+
+- Weekday contracts still exist, but they act as a soft bias instead of a hard writing cage
+- The main content system is now:
+  - `insight`
+  - `relatable`
+  - `commentary`
+  - `teaching`
+  - `inspiration`
+- The post type is selected deterministically from the day plus recent history unless you override it with `--post-type`
+- Source selection is broader by default now, with stable feeds across data engineering, Python/backend, ML/AI, and practical learning topics
+- Release-chasing LLM benchmark topics are penalized instead of dominating the queue
+
 ## Truth-Aligned Authority Engine
 
 The agent now separates source retrieval from writing posture:
 
 - `signal -> topic dossier -> truth profile -> authority mode -> post`
 - Default automated posture is `applied_analyst`, not `builder`
-- The draft must make provenance explicit whenever the evidence is second-hand or mixed
+- First-person perspective is allowed, but fake experiments and unsupported metrics are still blocked
+- Provenance is enforced where the post type and truth profile genuinely require it, not in every post
 - Builder authority is only allowed when you have a matching run note in `data/run_notes/`
 
 Reviewer-facing artifacts now include:
 
 - selected topic dossier
+- creator post type
+- topic pillar
 - authority mode
 - source ownership
 - evidence strength
@@ -144,6 +176,21 @@ Example:
 ```
 
 If no matching run note exists, automated runs will stay in `applied_analyst`, `amplifier`, `exploratory`, or `light` modes.
+
+## Voice Profile
+
+The creator voice is tracked in:
+
+- `config/voice_profile.json`
+
+That file defines:
+
+- base writing rules
+- banned corporate words
+- hook patterns
+- per-post-type notes
+
+You can tune the voice there without changing the pipeline logic.
 
 ## Scheduling
 

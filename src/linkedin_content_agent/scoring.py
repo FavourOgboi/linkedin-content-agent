@@ -47,6 +47,20 @@ RELEVANCE_KEYWORDS = {
     "dataset",
     "data",
     "analytics",
+    "analysis",
+    "sql",
+    "python",
+    "pandas",
+    "api",
+    "backend",
+    "excel",
+    "dashboard",
+    "airflow",
+    "dbt",
+    "warehouse",
+    "debugging",
+    "interview",
+    "career",
     "model",
     "models",
     "tooling",
@@ -67,6 +81,17 @@ SOURCE_WEIGHTS = {
     "hackernews": 0.8,
     "rss": 0.65,
 }
+
+LLM_BENCHMARK_TERMS = (
+    "benchmark",
+    "beats gpt",
+    "outperforms",
+    "llm leaderboard",
+    "model release",
+    "new model",
+    "parameter",
+    "sota",
+)
 
 
 def tokenize(text: str) -> set[str]:
@@ -144,6 +169,12 @@ def day_fit_label(contract: DayContract, signal: Signal, angles: list[str]) -> s
     return "weak"
 
 
+def llm_benchmark_penalty(signal: Signal) -> float:
+    haystack = f"{signal.title} {signal.excerpt}".lower()
+    matches = sum(1 for term in LLM_BENCHMARK_TERMS if term in haystack)
+    return 0.3 if matches >= 2 else 0.0
+
+
 def build_candidate(signal: Signal, contract: DayContract, prior_titles: list[str]) -> TopicCandidate | None:
     angles = derive_angles(signal)
     if not angles:
@@ -156,10 +187,17 @@ def build_candidate(signal: Signal, contract: DayContract, prior_titles: list[st
         return None
     evidence_component = evidence_strength(signal)
     novelty_component = novelty_penalty(signal.title, prior_titles)
+    release_chasing_penalty = llm_benchmark_penalty(signal)
 
     day_bonus = 0.2 if any(angle in contract.required_signals for angle in angles) else 0.0
     total = round(
-        source_component + recency_component + relevance_component + evidence_component + day_bonus - novelty_component,
+        source_component
+        + recency_component
+        + relevance_component
+        + evidence_component
+        + day_bonus
+        - novelty_component
+        - release_chasing_penalty,
         4,
     )
     evidence = [

@@ -1,6 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from linkedin_content_agent.models import EmailPayload, GeneratedContent, RunSummary
+
+
+def render_image_suggestion(image_suggestion: dict | None, fallback: str = "") -> str:
+    if not image_suggestion:
+        return f"Visual: {fallback}" if fallback else ""
+
+    return (
+        f"Image suggestion ({image_suggestion.get('type', 'unknown')}): "
+        f"{image_suggestion.get('description', '')} - "
+        f"{image_suggestion.get('how_to_create', '')} - "
+        f"Why it works: {image_suggestion.get('why_it_works', '')}"
+    ).strip()
 
 
 def render_markdown(summary: RunSummary, generated_content: GeneratedContent, review_url: str | None = None) -> str:
@@ -10,7 +24,12 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         backup_lines.append(f"- Angle: {backup.angle}")
         backup_lines.append(f"- Hook: {backup.hook}")
         backup_lines.append(f"- Why now: {backup.why_now}")
-        backup_lines.append(f"- Visual: {backup.visual_suggestion}")
+        image_line = render_image_suggestion(
+            asdict(backup.image_suggestion) if backup.image_suggestion is not None else None,
+            fallback=backup.visual_suggestion,
+        )
+        if image_line:
+            backup_lines.append(f"- {image_line}")
         backup_lines.append("")
 
     source_lines = [
@@ -20,7 +39,10 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
     review_line = (
         f"Review URL: {review_url}"
         if review_url
-        else f"Review locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
+        else (
+            f"Review locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} "
+            '--decision approved --notes "Your notes"'
+        )
     )
     originality_lines: list[str] = []
     if generated_content.originality_audit is not None:
@@ -52,10 +74,13 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         ]
 
     sections = [
-        f"# {summary.day} - {summary.post_type}",
+        f"# {summary.day} - {summary.creator_post_type or summary.post_type}",
         "",
         f"- Run ID: `{summary.run_id}`",
         f"- Status: `{summary.status}`",
+        f"- Creator post type: {summary.creator_post_type or generated_content.primary.post_type}",
+        f"- Topic pillar: {summary.topic_pillar or 'unclassified'}",
+        f"- Legacy weekday type: {summary.post_type}",
         f"- Selected topic: {summary.selected_topic}",
         review_line,
         "",
@@ -69,7 +94,10 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         generated_content.primary.draft_post,
         "",
         "## Visual Suggestion",
-        generated_content.primary.visual_suggestion,
+        render_image_suggestion(
+            asdict(generated_content.primary.image_suggestion) if generated_content.primary.image_suggestion is not None else None,
+            fallback=generated_content.primary.visual_suggestion,
+        ),
         "",
         "## Why This Works",
         generated_content.primary.why_this_works,
@@ -97,7 +125,10 @@ def render_email_payload(
 ) -> EmailPayload:
     review_block = (
         review_url
-        or f"Run locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} --decision approved --notes \"Your notes\""
+        or (
+            f"Run locally: python -m linkedin_content_agent.cli review --run-id {summary.run_id} "
+            '--decision approved --notes "Your notes"'
+        )
     )
     originality_block = []
     if generated_content.originality_audit is not None:
@@ -144,7 +175,9 @@ def render_email_payload(
     body = "\n".join(
         [
             f"Run ID: {summary.run_id}",
-            f"Day / Type: {summary.day} / {summary.post_type}",
+            f"Day / Creator Type: {summary.day} / {summary.creator_post_type or generated_content.primary.post_type}",
+            f"Legacy weekday type: {summary.post_type}",
+            f"Topic pillar: {summary.topic_pillar or 'unclassified'}",
             f"Selected topic: {summary.selected_topic}",
             f"Review: {review_block}",
             "",
@@ -158,7 +191,10 @@ def render_email_payload(
             generated_content.primary.draft_post,
             "",
             "VISUAL",
-            generated_content.primary.visual_suggestion,
+            render_image_suggestion(
+                asdict(generated_content.primary.image_suggestion) if generated_content.primary.image_suggestion is not None else None,
+                fallback=generated_content.primary.visual_suggestion,
+            ),
             "",
             "WHY THIS WORKS",
             generated_content.primary.why_this_works,

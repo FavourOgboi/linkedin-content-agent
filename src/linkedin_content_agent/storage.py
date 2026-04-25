@@ -18,6 +18,10 @@ class StorageBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def load_recent_runs(self, *, n: int = 4) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def save_run(
         self,
         *,
@@ -29,6 +33,8 @@ class StorageBackend(ABC):
         delivery_result: DeliveryResult,
         warnings: list[str],
         prompt_payload: dict[str, Any],
+        creator_post_type: str,
+        topic_pillar: str,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         raise NotImplementedError
@@ -73,6 +79,8 @@ class LocalHybridStorage(StorageBackend):
                     created_at TEXT NOT NULL,
                     day TEXT NOT NULL,
                     post_type TEXT NOT NULL,
+                    creator_post_type TEXT NOT NULL DEFAULT '',
+                    topic_pillar TEXT NOT NULL DEFAULT '',
                     selected_topic TEXT NOT NULL,
                     status TEXT NOT NULL,
                     delivery_status TEXT NOT NULL,
@@ -112,11 +120,36 @@ class LocalHybridStorage(StorageBackend):
                 );
                 """
             )
+            self._ensure_column(connection, "runs", "creator_post_type", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(connection, "runs", "topic_pillar", "TEXT NOT NULL DEFAULT ''")
+
+    def _ensure_column(self, connection: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+        if column_name in columns:
+            return
+        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
     def load_recent_topic_titles(self, *, limit: int = 200) -> list[str]:
         index = load_json(self.index_path, {})
         ordered = sorted(index.values(), key=lambda item: item.get("created_at", ""), reverse=True)
         return [item["selected_topic"] for item in ordered[:limit] if item.get("selected_topic")]
+
+    def load_recent_runs(self, *, n: int = 4) -> list[dict[str, Any]]:
+        if not self.runs_path.exists():
+            return []
+        lines = [line.strip() for line in self.runs_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        recent: list[dict[str, Any]] = []
+        for line in reversed(lines):
+            try:
+                recent.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if len(recent) >= n:
+                break
+        return recent
 
     def save_run(
         self,
@@ -129,6 +162,8 @@ class LocalHybridStorage(StorageBackend):
         delivery_result: DeliveryResult,
         warnings: list[str],
         prompt_payload: dict[str, Any],
+        creator_post_type: str,
+        topic_pillar: str,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         json_path = self.outputs_dir / f"{context.run_id}.json"
@@ -140,6 +175,8 @@ class LocalHybridStorage(StorageBackend):
             created_at=context.created_at.isoformat(),
             day=context.day,
             post_type=context.post_type,
+            creator_post_type=creator_post_type,
+            topic_pillar=topic_pillar,
             selected_topic=selected_topic,
             status="awaiting_review",
             source_count=len(signals),
@@ -172,15 +209,17 @@ class LocalHybridStorage(StorageBackend):
             connection.execute(
                 """
                 INSERT OR REPLACE INTO runs (
-                    run_id, created_at, day, post_type, selected_topic, status,
+                    run_id, created_at, day, post_type, creator_post_type, topic_pillar, selected_topic, status,
                     delivery_status, source_count, primary_artifact, prompt_artifact, warnings_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     summary.run_id,
                     summary.created_at,
                     summary.day,
                     summary.post_type,
+                    summary.creator_post_type,
+                    summary.topic_pillar,
                     summary.selected_topic,
                     summary.status,
                     summary.delivery_status,

@@ -7,16 +7,22 @@ from pathlib import Path
 
 DEFAULT_RSS_FEEDS = (
     "https://hnrss.org/frontpage",
-    "https://simonwillison.net/atom/everything/",
-    "https://openai.com/news/rss.xml",
-    "https://www.kdnuggets.com/feed",
+    "https://www.dataengineeringweekly.com/feed",
+    "https://www.theseattledataguy.com/feed",
+    "https://blog.bytebytego.com/feed",
+    "https://realpython.com/atom.xml",
+    "https://pycoders.com/feed",
+    "https://towardsdatascience.com/feed",
+    "https://www.fast.ai/index.xml",
+    "https://huggingface.co/blog/feed.xml",
 )
 
 DEFAULT_REDDIT_SUBREDDITS = (
     "MachineLearning",
-    "LocalLLaMA",
     "datascience",
-    "ChatGPT",
+    "dataengineering",
+    "learnpython",
+    "Python",
 )
 
 DEPRECATED_RSS_FEED_REPLACEMENTS = {
@@ -179,7 +185,8 @@ class AppConfig:
     @property
     def creator_context(self) -> str:
         return (
-            "The creator has a background in data science and analytics, is transitioning "
-            "into AI systems, LLMs, and agents, and wants to sound like a thinking builder "
-            "who values depth, clarity, and real-world insight over hype."
+            "The creator has a background in data science and analytics and now writes across "
+            "AI systems, machine learning, data engineering, Python, backend development, APIs, "
+            "SQL, Excel, and practical builder workflows. The voice should feel like a thinking "
+            "builder who teaches clearly, shares perspective, and values honest insight over hype."
         )

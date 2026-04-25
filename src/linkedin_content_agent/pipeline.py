@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from linkedin_content_agent.config import AppConfig
+from linkedin_content_agent.content_strategy import get_day_tone_hint, passes_topic_filter, select_post_type
 from linkedin_content_agent.day_contracts import resolve_day_contract, resolve_topic_choice
 from linkedin_content_agent.emailer import SMTPEmailSender
 from linkedin_content_agent.models import DeliveryResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicContext, TopicSelection
@@ -23,6 +24,41 @@ from linkedin_content_agent.validation import (
     validate_originality,
     validate_truth_alignment,
 )
+
+
+CREATOR_CRITIC_PROMPTS = {
+    "insight": (
+        "This draft failed validation. Do not fix it by sounding more formal. Sharpen the hook, the perspective, or the specificity."
+    ),
+    "relatable": (
+        "This draft failed validation. Make it shorter and more specific. Humor should come from recognition, not from trying too hard."
+    ),
+    "commentary": (
+        "This draft failed validation. Do not summarize the news again. Reference the event briefly, then make one clear argument."
+    ),
+    "teaching": (
+        "This draft failed validation. Narrow the scope to one concept. Explain it plainly and remove jargon that is not explained."
+    ),
+    "inspiration": (
+        "This draft failed validation. Make it more specific and grounded. Avoid motivational-poster language."
+    ),
+}
+
+
+def _load_recent_post_types(storage: StorageBackend, n: int = 4) -> list[str]:
+    try:
+        recent_runs = storage.load_recent_runs(n=n)
+    except Exception:
+        return []
+    return [str(run.get("creator_post_type", "")).strip() for run in recent_runs if run.get("creator_post_type")]
+
+
+def _load_recent_pillars(storage: StorageBackend, n: int = 4) -> list[str]:
+    try:
+        recent_runs = storage.load_recent_runs(n=n)
+    except Exception:
+        return []
+    return [str(run.get("topic_pillar", "")).strip() for run in recent_runs if run.get("topic_pillar")]
 
 
 class ContentAgent:
@@ -57,17 +93,30 @@ class ContentAgent:
         except ZoneInfoNotFoundError:
             now = datetime.now(UTC)
         contract = resolve_day_contract(options.day_override, now=now, timezone=self.config.timezone)
+        recent_types = _load_recent_post_types(self.storage, n=4)
+        creator_post_type = options.post_type_override or select_post_type(
+            contract.day,
+            recent_types,
+            seed_date=now.date(),
+        )
+        day_tone_hint = get_day_tone_hint(contract.day)
         context = RunContext(
             run_id=f"{now.strftime('%Y%m%d-%H%M%S')}-{slugify(contract.day)}",
             created_at=now,
             day=contract.day,
             post_type=contract.post_type,
+            creator_post_type=creator_post_type,
         )
 
         warnings: list[str] = []
         signals = self._collect_signals(warnings)
         prior_titles = self.storage.load_recent_topic_titles()
         candidates = rank_signals(signals, contract, prior_titles=prior_titles)
+        filtered_candidates = self._filter_candidates_by_brand(candidates)
+        if filtered_candidates:
+            candidates = filtered_candidates
+        elif candidates:
+            warnings.append("On-brand pillar filtering removed every candidate, so the run fell back to the broader candidate set.")
 
         if not candidates and not options.topic_override:
             raise RuntimeError("No viable topic candidates were generated from the public signal set.")
@@ -80,7 +129,10 @@ class ContentAgent:
             signals,
             contract,
             run_notes_dir=self.config.run_notes_dir,
+            creator_post_type=creator_post_type,
+            day_tone_hint=day_tone_hint,
         )
+        topic_contexts = self._apply_pillar_diversity(topic_contexts)
         if not topic_contexts and not options.topic_override:
             raise RuntimeError("No viable topic dossiers were generated from the public signal set.")
 
@@ -93,7 +145,7 @@ class ContentAgent:
             caution_notes=selection.caution_notes,
         )
 
-        generated_content, accepted_selection = self._generate_with_truth_and_originality_guard(
+        generated_content, accepted_selection, accepted_topic_context = self._generate_with_truth_and_originality_guard(
             contract,
             effective_selection,
             topic_contexts,
@@ -103,6 +155,8 @@ class ContentAgent:
         prompt_payload = {
             "run_id": context.run_id,
             "contract": asdict(contract),
+            "creator_post_type": creator_post_type,
+            "day_tone_hint": day_tone_hint,
             "initial_selection": asdict(effective_selection),
             "final_selection": asdict(accepted_selection),
             "truth_profile": asdict(generated_content.truth_profile) if generated_content.truth_profile is not None else None,
@@ -113,7 +167,14 @@ class ContentAgent:
             "topic_contexts": [asdict(context) for context in topic_contexts[:5]],
             "signal_count": len(signals),
         }
-        delivery_result = self._deliver(context, generated_content, selected_topic, review_url, options.send_email)
+        delivery_result = self._deliver(
+            context,
+            generated_content,
+            selected_topic,
+            accepted_topic_context.topic_pillar,
+            review_url,
+            options.send_email,
+        )
         summary, artifacts = self.storage.save_run(
             context=context,
             selected_topic=selected_topic,
@@ -123,6 +184,8 @@ class ContentAgent:
             delivery_result=delivery_result,
             warnings=warnings,
             prompt_payload=prompt_payload,
+            creator_post_type=creator_post_type,
+            topic_pillar=accepted_topic_context.topic_pillar,
             review_url=review_url,
         )
         return AgentRunResult(
@@ -165,6 +228,39 @@ class ContentAgent:
             novelty_penalty=0.0,
             supporting_signals=supporting,
         )
+
+    def _filter_candidates_by_brand(self, candidates: list[TopicCandidate]) -> list[TopicCandidate]:
+        filtered = [
+            candidate
+            for candidate in candidates
+            if passes_topic_filter(" ".join([candidate.title, *candidate.evidence, *candidate.angles]))
+        ]
+        return filtered
+
+    def _apply_pillar_diversity(self, topic_contexts: list[TopicContext]) -> list[TopicContext]:
+        recent_pillars = _load_recent_pillars(self.storage, n=4)
+        if not recent_pillars:
+            return topic_contexts
+
+        adjusted: list[tuple[float, TopicContext]] = []
+        for topic_context in topic_contexts:
+            penalty = 0.0
+            if topic_context.topic_pillar and topic_context.topic_pillar in recent_pillars[:2]:
+                penalty = 0.3
+            elif topic_context.topic_pillar and topic_context.topic_pillar in recent_pillars:
+                penalty = 0.15
+            adjusted_score = topic_context.candidate.score_total - penalty
+            adjusted.append((adjusted_score, topic_context))
+
+        adjusted.sort(
+            key=lambda item: (
+                item[0],
+                item[1].candidate.score_breakdown.relevance,
+                item[1].candidate.score_breakdown.recency,
+            ),
+            reverse=True,
+        )
+        return [topic_context for _, topic_context in adjusted]
 
     def _topic_context_queue(self, selection: TopicSelection, topic_contexts: list[TopicContext]) -> list[TopicContext]:
         ordered_titles = [selection.selected_title, *selection.backup_titles]
@@ -239,6 +335,9 @@ class ContentAgent:
         dossier = topic_context.dossier
         lines = [
             "Truth alignment contract:",
+            f"- Creator post type: {topic_context.creator_post_type}",
+            f"- Day tone hint: {topic_context.day_tone_hint}",
+            f"- Topic pillar: {topic_context.topic_pillar or 'unclassified'}",
             f"- Authority mode: {truth_profile.authority_mode}",
             f"- Source ownership: {truth_profile.source_ownership}",
             f"- Evidence strength: {truth_profile.evidence_strength}",
@@ -320,13 +419,17 @@ class ContentAgent:
             revision_feedback: str | None = self._truth_brief(topic_context)
 
             for _ in range(2):
-                generated_content = self._generate_with_critic(
-                    contract,
-                    current_selection,
-                    topic_context,
-                    self._reference_contexts(topic_context, topic_contexts),
-                    revision_feedback=revision_feedback,
-                )
+                try:
+                    generated_content = self._generate_with_critic(
+                        contract,
+                        current_selection,
+                        topic_context,
+                        self._reference_contexts(topic_context, topic_contexts),
+                        revision_feedback=revision_feedback,
+                    )
+                except RuntimeError as exc:
+                    last_issues = [str(exc)]
+                    break
                 truth_issues = validate_truth_alignment(generated_content, contract, topic_context)
                 if truth_issues:
                     last_issues = truth_issues
@@ -345,7 +448,7 @@ class ContentAgent:
                     generated_content.primary.self_audit.critic_notes.append(
                         f"Originality: {originality_audit.transformation_type} ({originality_audit.originality_score}/10)."
                     )
-                    return generated_content, current_selection
+                    return generated_content, current_selection, topic_context
 
                 last_issues = originality_issues
                 revision_feedback = "\n".join(
@@ -378,7 +481,7 @@ class ContentAgent:
                 creator_context=self.config.creator_context,
                 revision_feedback=revision_feedback,
             )
-            deterministic_issues = validate_generated_content(generated_content, contract)
+            deterministic_issues = validate_generated_content(generated_content, contract, topic_context)
             audit = self.model.audit_content(
                 contract=contract,
                 topic_context=topic_context,
@@ -393,6 +496,7 @@ class ContentAgent:
             last_issues = deterministic_issues + audit_issues
             feedback_parts = [
                 revision_feedback,
+                CREATOR_CRITIC_PROMPTS.get(topic_context.creator_post_type, CREATOR_CRITIC_PROMPTS["insight"]),
                 self._deterministic_feedback(contract, deterministic_issues),
                 *audit_issues,
                 audit.revision_instructions,
@@ -401,7 +505,15 @@ class ContentAgent:
 
         raise RuntimeError("Content generation failed critic review: " + "; ".join(last_issues))
 
-    def _deliver(self, context: RunContext, generated_content, selected_topic: str, review_url: str | None, send_email: bool) -> DeliveryResult:
+    def _deliver(
+        self,
+        context: RunContext,
+        generated_content,
+        selected_topic: str,
+        topic_pillar: str,
+        review_url: str | None,
+        send_email: bool,
+    ) -> DeliveryResult:
         if not send_email:
             return DeliveryResult(status="skipped", detail="Email delivery was skipped by CLI flag.")
         if not self.config.smtp.recipient:
@@ -414,6 +526,8 @@ class ContentAgent:
                 "run_id": context.run_id,
                 "day": context.day,
                 "post_type": context.post_type,
+                "creator_post_type": context.creator_post_type,
+                "topic_pillar": topic_pillar,
                 "selected_topic": selected_topic,
             },
         )

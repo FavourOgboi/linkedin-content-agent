@@ -17,6 +17,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run the content generation pipeline.")
     run_parser.add_argument("--day", dest="day_override")
     run_parser.add_argument("--topic", dest="topic_override")
+    run_parser.add_argument(
+        "--post-type",
+        dest="post_type_override",
+        choices=["insight", "relatable", "commentary", "teaching", "inspiration"],
+    )
     run_parser.add_argument("--skip-email", action="store_true")
 
     review_parser = subparsers.add_parser("review", help="Record a review decision for a previous run.")
@@ -48,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         RunOptions(
             day_override=args.day_override,
             topic_override=args.topic_override,
+            post_type_override=args.post_type_override,
             send_email=not args.skip_email,
         )
     )

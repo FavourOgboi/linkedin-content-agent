@@ -16,6 +16,8 @@ AuthorityMode = Literal["builder", "applied_analyst", "amplifier", "exploratory"
 PositionType = Literal["support", "challenge", "refine", "test"]
 SourceQuality = Literal["first_hand", "reproducible", "technical_writeup", "discussion"]
 ConflictLevel = Literal["low", "medium", "high"]
+CreatorPostType = Literal["insight", "relatable", "commentary", "teaching", "inspiration"]
+TopicPillar = Literal["ai_ml", "data_engineering", "python_backend", "beginner_practice", "career_insight", ""]
 
 
 @dataclass(slots=True)
@@ -116,6 +118,9 @@ class TopicContext:
     candidate: TopicCandidate
     dossier: TopicDossier
     truth_profile: TruthProfile
+    creator_post_type: CreatorPostType = "insight"
+    day_tone_hint: str = ""
+    topic_pillar: TopicPillar = ""
 
 
 @dataclass(slots=True)
@@ -135,6 +140,14 @@ class OriginalityAudit:
 
 
 @dataclass(slots=True)
+class ImageSuggestion:
+    type: str
+    description: str
+    how_to_create: str
+    why_it_works: str
+
+
+@dataclass(slots=True)
 class PostPackage:
     day: str
     post_type: str
@@ -145,6 +158,7 @@ class PostPackage:
     why_this_works: str
     source_refs: list[SourceReference]
     self_audit: SelfAudit
+    image_suggestion: ImageSuggestion | None = None
 
 
 @dataclass(slots=True)
@@ -154,6 +168,7 @@ class BackupIdea:
     hook: str
     why_now: str
     visual_suggestion: str
+    image_suggestion: ImageSuggestion | None = None
 
 
 @dataclass(slots=True)
@@ -188,6 +203,8 @@ class RunSummary:
     created_at: str
     day: str
     post_type: str
+    creator_post_type: CreatorPostType | str
+    topic_pillar: TopicPillar | str
     selected_topic: str
     status: str
     source_count: int
@@ -222,6 +239,7 @@ class ModelAuditResult:
 class RunOptions:
     day_override: str | None = None
     topic_override: str | None = None
+    post_type_override: CreatorPostType | None = None
     send_email: bool = True
 
 
@@ -253,3 +271,4 @@ class RunContext:
     created_at: datetime
     day: str
     post_type: str
+    creator_post_type: CreatorPostType | str = ""

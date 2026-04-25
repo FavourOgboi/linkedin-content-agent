@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from urllib.parse import urlparse
 
+from linkedin_content_agent.content_strategy import classify_pillar
 from linkedin_content_agent.day_contracts import DayContract
 from linkedin_content_agent.models import (
     DossierSource,
@@ -564,6 +565,15 @@ def build_topic_contexts(
     contract: DayContract,
     *,
     run_notes_dir: Path,
+    creator_post_type: str = "insight",
+    day_tone_hint: str = "",
 ) -> list[TopicContext]:
     run_notes = load_run_notes(run_notes_dir)
-    return [build_topic_context(candidate, signals, contract, run_notes) for candidate in candidates]
+    contexts: list[TopicContext] = []
+    for candidate in candidates:
+        context = build_topic_context(candidate, signals, contract, run_notes)
+        context.creator_post_type = creator_post_type
+        context.day_tone_hint = day_tone_hint
+        context.topic_pillar = classify_pillar(" ".join([candidate.title, *candidate.evidence]))
+        contexts.append(context)
+    return contexts

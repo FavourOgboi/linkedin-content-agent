@@ -1,0 +1,47 @@
+{
+  "base_rules": [
+    "Write like a smart senior engineer talking to a junior colleague at lunch, not a press release",
+    "Short sentences. Simple words. No corporate speak.",
+    "First person. Real opinions. Say 'I think' not 'it is important to note'",
+    "Flesch reading ease target: 60 or above",
+    "No emoji storms. Zero to two emojis max, only if they add meaning",
+    "No hashtag dumps. Two to three hashtags max, at the end, relevant only",
+    "No fake humility and no fake hype",
+    "If you have nothing original to say, say less not more"
+  ],
+  "banned_words": [
+    "leverage",
+    "ecosystem",
+    "democratize",
+    "robust",
+    "seamless",
+    "game-changer",
+    "unlock",
+    "empower",
+    "utilize",
+    "synergy",
+    "groundbreaking",
+    "revolutionary",
+    "transformative",
+    "cutting-edge",
+    "innovative",
+    "holistic",
+    "paradigm",
+    "scalable",
+    "actionable"
+  ],
+  "hook_patterns": [
+    "Name a tension: 'Most people do X. The problem is Y.'",
+    "Name the gap: 'Everyone learns X. Almost nobody learns when not to use it.'",
+    "Drop the number or outcome first: 'Six months of learning Python. Still googling how to reverse a list.'",
+    "Start with the reaction: 'Google just acquired X. Everyone: big news. Me: who is cleaning the training data?'",
+    "Name the stage: 'Six months ago you did not know what a REST API was. Today it is just Tuesday.'"
+  ],
+  "post_type_notes": {
+    "insight": "Perspective-first. No citations unless a hard stat is used. First person welcome.",
+    "relatable": "Humor from specificity not effort. Short. Always suggest an image.",
+    "commentary": "Skip the summary. Give the take. One argument not a list.",
+    "teaching": "One concept only. Explain out loud. Narrow scope equals better post.",
+    "inspiration": "Specific not generic. Write to a peer. Quiet endings are fine."
+  }
+}
