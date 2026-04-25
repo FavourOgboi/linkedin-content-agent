@@ -151,6 +151,13 @@ def build_system_prompt(
         "- Use extended only if the concept loses honesty or clarity when compressed.\n"
         "- If you use extended, provide a one-sentence justification in `length_mode_reason`."
     )
+    if post_type in {"relatable", "inspiration"}:
+        sections.append(
+            "SHORT-FORM SAFETY MARGIN\n"
+            f"- `{post_type}` is a short-form post type.\n"
+            f"- Do not write up to the ceiling. Land about 10 words under the {length_policy['standard']}-word limit.\n"
+            "- That safety margin applies to both the primary post and any `backup_text_post`."
+        )
     if day_hint:
         sections.append(f"TODAY'S TONE HINT\n{day_hint}")
     sections.append(
@@ -364,6 +371,8 @@ class OpenAIContentModel:
             "The primary post is always the public-facing caption or main text for the selected format.",
             "For non-text formats, `format_plan` is required and `backup_text_post` is required as a full plain-text fallback.",
             "For text format, both `format_plan` and `backup_text_post` must be null.",
+            "The primary post and the backup_text_post must each satisfy the length policy independently.",
+            "If the post type is short-form, stay comfortably below the word cap instead of writing to the exact limit.",
             f"Authority mode for this post: {topic_context.truth_profile.authority_mode}.",
             f"Allowed claim posture: {topic_context.truth_profile.allowed_claim_posture}",
             f"Provenance rule: {topic_context.truth_profile.provenance_rule}",

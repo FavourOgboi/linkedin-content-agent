@@ -408,6 +408,14 @@ class ContentAgent:
                 "This draft exceeds the length limit for its post type. Cut the weakest line entirely. "
                 "If two sentences are doing the same job, delete one. The post must get sharper, not just shorter."
             )
+        if any(issue.startswith("Backup text post: Post too long:") or issue.startswith("Backup text post: Too many lines:") for issue in issues):
+            lines.append(
+                "The backup_text_post is also over the limit. Rewrite the fallback separately instead of copying the primary length."
+            )
+        if any("'relatable'" in issue or "'inspiration'" in issue for issue in issues if "too long" in issue.lower()):
+            lines.append(
+                "Relatable and inspiration posts need a safety margin. Rewrite them to land clearly under the cap, not right on it."
+            )
         if any("Extended mode requires a non-empty length_mode_reason." in issue for issue in issues):
             lines.append("If you use extended length_mode, add one direct sentence explaining why standard length would damage the post.")
         if any("has no extended mode." in issue for issue in issues):

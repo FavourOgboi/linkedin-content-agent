@@ -573,7 +573,10 @@ def validate_generated_content(
         if generated_content.backup_text_post is None:
             issues.append(f"{expected_format.capitalize()} runs require a backup_text_post fallback.")
         else:
-            issues.extend(validate_post_package(generated_content.backup_text_post, contract, topic_context))
+            issues.extend(
+                f"Backup text post: {issue}"
+                for issue in validate_post_package(generated_content.backup_text_post, contract, topic_context)
+            )
         if expected_format == "carousel" and (
             generated_content.format_plan is None or not generated_content.format_plan.slides
         ):
