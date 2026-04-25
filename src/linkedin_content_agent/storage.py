@@ -35,6 +35,7 @@ class StorageBackend(ABC):
         prompt_payload: dict[str, Any],
         creator_post_type: str,
         topic_pillar: str,
+        content_format: str,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         raise NotImplementedError
@@ -81,6 +82,7 @@ class LocalHybridStorage(StorageBackend):
                     post_type TEXT NOT NULL,
                     creator_post_type TEXT NOT NULL DEFAULT '',
                     topic_pillar TEXT NOT NULL DEFAULT '',
+                    content_format TEXT NOT NULL DEFAULT 'text',
                     selected_topic TEXT NOT NULL,
                     status TEXT NOT NULL,
                     delivery_status TEXT NOT NULL,
@@ -122,6 +124,7 @@ class LocalHybridStorage(StorageBackend):
             )
             self._ensure_column(connection, "runs", "creator_post_type", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(connection, "runs", "topic_pillar", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(connection, "runs", "content_format", "TEXT NOT NULL DEFAULT 'text'")
 
     def _ensure_column(self, connection: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
         columns = {
@@ -164,6 +167,7 @@ class LocalHybridStorage(StorageBackend):
         prompt_payload: dict[str, Any],
         creator_post_type: str,
         topic_pillar: str,
+        content_format: str,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         json_path = self.outputs_dir / f"{context.run_id}.json"
@@ -177,6 +181,7 @@ class LocalHybridStorage(StorageBackend):
             post_type=context.post_type,
             creator_post_type=creator_post_type,
             topic_pillar=topic_pillar,
+            content_format=content_format,
             selected_topic=selected_topic,
             status="awaiting_review",
             source_count=len(signals),
@@ -209,9 +214,9 @@ class LocalHybridStorage(StorageBackend):
             connection.execute(
                 """
                 INSERT OR REPLACE INTO runs (
-                    run_id, created_at, day, post_type, creator_post_type, topic_pillar, selected_topic, status,
+                    run_id, created_at, day, post_type, creator_post_type, topic_pillar, content_format, selected_topic, status,
                     delivery_status, source_count, primary_artifact, prompt_artifact, warnings_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     summary.run_id,
@@ -220,6 +225,7 @@ class LocalHybridStorage(StorageBackend):
                     summary.post_type,
                     summary.creator_post_type,
                     summary.topic_pillar,
+                    summary.content_format,
                     summary.selected_topic,
                     summary.status,
                     summary.delivery_status,

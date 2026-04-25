@@ -15,7 +15,9 @@ from uuid import uuid4
 from linkedin_content_agent.config import AppConfig, SMTPConfig
 from linkedin_content_agent.models import (
     BackupIdea,
+    CarouselSlide,
     DeliveryResult,
+    FormatPlan,
     GeneratedContent,
     ModelAuditResult,
     OriginalityAudit,
@@ -35,11 +37,15 @@ def build_generated_content(
     contract,
     selection,
     *,
+    post_type: str | None = None,
     hook: str,
     mechanism: str,
     opening_line: str = "A recent benchmark suggests the model quality is not the main failure point here.",
     include_metrics: bool = False,
     model_name: str | None = None,
+    content_format: str = "text",
+    length_mode: str = "standard",
+    length_mode_reason: str | None = None,
 ) -> GeneratedContent:
     metric_line = "In one setup, refusal rate rose by 42%." if include_metrics else "That claim is still worth testing in your own setup."
     model_line = f"{model_name} was the headline in the discussion." if model_name else "The setup details matter more than the headline."
@@ -74,7 +80,7 @@ def build_generated_content(
 
     primary = PostPackage(
         day=contract.day,
-        post_type=contract.post_type,
+        post_type=post_type or contract.post_type,
         hook=hook,
         core_idea=core_idea,
         draft_post=draft_post,
@@ -85,6 +91,8 @@ def build_generated_content(
             passed_checks=["Contains provenance, a failure point, and a lesson."],
             critic_notes=[],
         ),
+        length_mode=length_mode,
+        length_mode_reason=length_mode_reason,
     )
     backups = [
         BackupIdea(
@@ -102,7 +110,49 @@ def build_generated_content(
             visual_suggestion="Simple workflow diagram with the failing boundary highlighted.",
         ),
     ]
-    return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Chosen for strong multi-source relevance.")
+    format_plan = None
+    backup_text_post = None
+    if content_format != "text":
+        slides = None
+        visual_structure = None
+        if content_format == "carousel":
+            slides = [
+                CarouselSlide(title="The mistake", bullets=["People over-engineer first.", "The simple path is usually enough."]),
+                CarouselSlide(title="The better pattern", bullets=["Start small.", "Add complexity only when the pain is real."]),
+            ]
+        if content_format == "infographic":
+            visual_structure = "comparison"
+        format_plan = FormatPlan(
+            format=content_format,
+            what_to_create=f"Create a {content_format} asset for this topic.",
+            why_this_format=f"{content_format.capitalize()} makes the point easier to grasp quickly.",
+            asset_brief=[f"Show the workflow boundary clearly in the {content_format}.", "Keep the asset specific and readable."],
+            deadline_hint="Use this today.",
+            caption_note="The primary post is the caption that goes with the asset.",
+            visual_structure=visual_structure,
+            slides=slides,
+        )
+        backup_text_post = PostPackage(
+            day=contract.day,
+            post_type=post_type or contract.post_type,
+            hook=f"{hook} (Backup text version)",
+            core_idea=core_idea,
+            draft_post=draft_post,
+            visual_suggestion="Use this backup if you skip the format-specific asset today.",
+            why_this_works=why_this_works,
+            source_refs=[SourceReference(source="reddit:MachineLearning", title=selection.selected_title, url="https://example.com/topic")],
+            self_audit=SelfAudit(
+                passed_checks=["Backup post stays usable if the asset does not get made."],
+                critic_notes=[],
+            ),
+        )
+    return GeneratedContent(
+        primary=primary,
+        backups=backups,
+        selected_topic_reason="Chosen for strong multi-source relevance.",
+        format_plan=format_plan,
+        backup_text_post=backup_text_post,
+    )
 
 
 class FakeSource:
@@ -133,8 +183,10 @@ class PassingModel:
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook="Most agent failures look like model problems until you inspect the workflow boundary.",
             mechanism="protocol checks fail when conversational priors leak into the tool contract",
+            content_format=topic_context.content_format,
         )
 
     def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
@@ -161,14 +213,18 @@ class ReframeThenPassModel(PassingModel):
             return build_generated_content(
                 contract,
                 selection,
+                post_type=topic_context.creator_post_type,
                 hook="The real problem with Opus-style fine-tunes is protocol breakage, not intelligence.",
                 mechanism="chat-optimized tuning degrades tool contract adherence in agent workflows",
+                content_format=topic_context.content_format,
             )
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook=selection.selected_title,
             mechanism="the model feels worse than expected",
+            content_format=topic_context.content_format,
         )
 
     def assess_originality(self, *, contract, selection, topic_context, generated_content):
@@ -210,14 +266,18 @@ class FallbackToNextCandidateModel(PassingModel):
             return build_generated_content(
                 contract,
                 selection,
+                post_type=topic_context.creator_post_type,
                 hook=selection.selected_title,
                 mechanism="it feels worse in chat than the base model",
+                content_format=topic_context.content_format,
             )
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook="Why chat-first fine-tunes make your agent worse at doing real work",
             mechanism="chat-first fine-tunes inherit conversational priors that break tool protocol adherence",
+            content_format=topic_context.content_format,
         )
 
     def assess_originality(self, *, contract, selection, topic_context, generated_content):
@@ -250,15 +310,19 @@ class BuilderThenDowngradeModel(PassingModel):
             return build_generated_content(
                 contract,
                 selection,
+                post_type=topic_context.creator_post_type,
                 hook="A recent benchmark makes one thing clear: the workflow boundary matters more than the headline score.",
                 mechanism="protocol checks fail when conversational priors leak into the tool contract",
+                content_format=topic_context.content_format,
             )
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook="I tested the benchmark claim and the workflow boundary failed first.",
             mechanism="protocol checks fail when conversational priors leak into the tool contract",
             opening_line="I tested the benchmark claim on a live workflow.",
+            content_format=topic_context.content_format,
         )
 
 
@@ -266,20 +330,45 @@ class EchoChamberFallbackModel(PassingModel):
     def __init__(self):
         self.attempted_titles: list[str] = []
 
+    def choose_topic(self, contract, topic_contexts, topic_override=None):
+        downgrade_title = next(
+            (
+                context.candidate.title
+                for context in topic_contexts
+                if "downgrade" in context.candidate.title.lower()
+            ),
+            topic_override or topic_contexts[0].candidate.title,
+        )
+        backups = [
+            context.candidate.title
+            for context in topic_contexts
+            if context.candidate.title != downgrade_title
+        ][:2]
+        return TopicSelection(
+            selected_title=downgrade_title,
+            selected_reason="Chosen to test the echo-chamber fallback path first.",
+            backup_titles=backups,
+            caution_notes=[],
+        )
+
     def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
         self.attempted_titles.append(selection.selected_title)
         if "downgrade" in selection.selected_title.lower():
             return build_generated_content(
                 contract,
                 selection,
+                post_type=topic_context.creator_post_type,
                 hook="These fine-tunes are a downgrade for agents.",
                 mechanism="discussion threads keep repeating the same downgrade framing",
+                content_format=topic_context.content_format,
             )
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook="Protocol adherence is the hidden reason agent eval wins fail in production.",
             mechanism="benchmark gains disappear when tool contracts are looser than the benchmark assumes",
+            content_format=topic_context.content_format,
         )
 
 
@@ -298,8 +387,10 @@ class NeverCredibleModel(PassingModel):
         return build_generated_content(
             contract,
             selection,
+            post_type=topic_context.creator_post_type,
             hook=selection.selected_title,
             mechanism="it feels worse in chat than the base model",
+            content_format=topic_context.content_format,
         )
 
 
@@ -410,9 +501,11 @@ class DeterministicRetryModel(PassingModel):
             return build_generated_content(
                 contract,
                 selection,
+                post_type=topic_context.creator_post_type,
                 hook="I used to read leaderboards like rankings. I now assume they describe a stack.",
                 mechanism="stack context changes what the same benchmark score really means",
                 opening_line="A recent benchmark and a few external writeups changed how I read model rankings.",
+                content_format=topic_context.content_format,
             )
 
         primary = PostPackage(
@@ -461,6 +554,80 @@ class DeterministicRetryModel(PassingModel):
             reasons=["The provenance is otherwise sound."],
             revision_instructions="Fix the deterministic structure and reflection requirements first.",
         )
+
+
+class ExtendedTeachingModel(PassingModel):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        return build_generated_content(
+            contract,
+            selection,
+            post_type=topic_context.creator_post_type,
+            hook="Most people overcomplicate the first version of a data workflow.",
+            mechanism="people skip the simple mental model and jump straight into tooling",
+            opening_line=(
+                "Most people overcomplicate the first version of a data workflow.\n"
+                "The trap is that the tools feel like the work.\n"
+                "The work is really deciding what must happen, in what order, and what can fail.\n"
+                "That is why a slightly longer teaching post helps here: the example is what makes the lesson stick."
+            ),
+            content_format=topic_context.content_format,
+            length_mode="extended",
+            length_mode_reason="This teaching post needs extra room to keep the mental model and concrete example together.",
+        )
+
+
+class InvalidExtendedRelatableModel(PassingModel):
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        return build_generated_content(
+            contract,
+            selection,
+            post_type=topic_context.creator_post_type,
+            hook="Six months into Python and the bug is still one missing comma.",
+            mechanism="the small mistakes still hurt more than the flashy ones",
+            content_format=topic_context.content_format,
+            length_mode="extended",
+            length_mode_reason="I want more room even though this post type should stay short.",
+        )
+
+
+class TooLongCommentaryModel(PassingModel):
+    def __init__(self):
+        self.generate_calls: list[str | None] = []
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.generate_calls.append(revision_feedback)
+        if revision_feedback and "length limit" in revision_feedback.lower():
+            return build_generated_content(
+                contract,
+                selection,
+                post_type=topic_context.creator_post_type,
+                hook="The real problem with this release is not the model. It is the invisible operational cost.",
+                mechanism="teams still confuse model headlines with workflow reality",
+                content_format=topic_context.content_format,
+            )
+
+        too_long_body = "\n".join(
+            [
+                "The headline is not the story.",
+                *["This extra line keeps repeating the same point in a slightly different way." for _ in range(18)],
+            ]
+        )
+        primary = PostPackage(
+            day=contract.day,
+            post_type=topic_context.creator_post_type,
+            hook="This release looks bigger than it is.",
+            core_idea=[
+                "Most people react to the release headline, not the workflow implication.",
+                "The deeper issue is repeated operational complexity.",
+                "The tradeoff is more surface excitement for the same hidden maintenance burden.",
+            ],
+            draft_post=too_long_body,
+            visual_suggestion="Annotated screenshot of the release notes.",
+            why_this_works="It pushes one commentary argument.",
+            source_refs=[SourceReference(source="rss:blog", title=selection.selected_title, url="https://example.com/topic")],
+            self_audit=SelfAudit(passed_checks=["Single argument and explicit take."], critic_notes=[]),
+        )
+        return GeneratedContent(primary=primary, backups=build_generated_content(contract, selection, hook="Backup", mechanism="backup", post_type=topic_context.creator_post_type).backups, selected_topic_reason="Long commentary test.")
 
 
 class FakeEmailSender:
@@ -553,7 +720,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Monday", send_email=True))
+            result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=True))
 
             self.assertEqual(result.summary.status, "awaiting_review")
             self.assertEqual(result.delivery_result.status, "sent")
@@ -611,7 +778,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Monday", send_email=True))
+            result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=True))
 
             self.assertEqual(result.delivery_result.status, "failed")
             self.assertTrue(result.warnings)
@@ -646,7 +813,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Monday", send_email=False))
+            result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
 
             self.assertEqual(len(model.generate_calls), 2)
             self.assertIn("originality", (model.generate_calls[1] or "").lower())
@@ -681,9 +848,194 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Tuesday", post_type_override="teaching", send_email=False))
+            result = agent.run(RunOptions(day_override="Tuesday", post_type_override="teaching", format_override="text", send_email=False))
 
             self.assertEqual(result.summary.creator_post_type, "teaching")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_format_override_wins(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=PassingModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(
+                RunOptions(day_override="Tuesday", post_type_override="teaching", format_override="carousel", send_email=False)
+            )
+
+            self.assertEqual(result.summary.content_format, "carousel")
+            self.assertIsNotNone(result.generated_content.format_plan)
+            self.assertIsNotNone(result.generated_content.backup_text_post)
+            self.assertEqual(result.generated_content.format_plan.format, "carousel")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_can_run_each_supported_format(self) -> None:
+        for content_format in ("text", "photo", "screenshot", "carousel", "infographic"):
+            temp_dir = self._workspace_run_dir()
+            try:
+                data_dir = temp_dir / "data"
+                config = self._config(data_dir)
+                storage = LocalHybridStorage(data_dir)
+                agent = ContentAgent(
+                    config=config,
+                    storage=storage,
+                    model=PassingModel(),
+                    email_sender=FakeEmailSender(),
+                    source_adapters=[
+                        FakeSource(
+                            [
+                                self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                                self._signal(
+                                    title="Why protocol adherence matters in agent evaluation pipelines",
+                                    source="rss:blog",
+                                    url="https://github.com/example/agent-eval",
+                                    excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                                ),
+                            ]
+                        )
+                    ],
+                )
+
+                result = agent.run(
+                    RunOptions(day_override="Thursday", post_type_override="commentary", format_override=content_format, send_email=False)
+                )
+
+                self.assertEqual(result.summary.content_format, content_format)
+                if content_format == "text":
+                    self.assertIsNone(result.generated_content.format_plan)
+                    self.assertIsNone(result.generated_content.backup_text_post)
+                else:
+                    self.assertIsNotNone(result.generated_content.format_plan)
+                    self.assertIsNotNone(result.generated_content.backup_text_post)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_accepts_valid_extended_teaching_post(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=ExtendedTeachingModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Why protocol adherence matters in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="A practical mental model for debugging data workflows",
+                                source="rss:blog",
+                                url="https://github.com/example/workflow-mental-model",
+                                excerpt="A technical writeup explains why a simple mental model beats tool-first thinking.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(
+                RunOptions(day_override="Tuesday", post_type_override="teaching", format_override="text", send_email=False)
+            )
+
+            self.assertEqual(result.generated_content.primary.length_mode, "extended")
+            self.assertTrue(result.generated_content.primary.length_mode_reason)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_rejects_invalid_extended_relatable_mode(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=InvalidExtendedRelatableModel(),
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="A tiny bug still ruined the whole notebook run", url="https://example.com/1"),
+                            self._signal(
+                                title="Debugging the boring bug matters more than the fancy tool",
+                                source="rss:blog",
+                                url="https://example.com/debugging",
+                                excerpt="A practical note about small errors and workflow pain.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            with self.assertRaises(RuntimeError) as context:
+                agent.run(
+                    RunOptions(day_override="Friday", post_type_override="relatable", format_override="text", send_email=False)
+                )
+
+            self.assertIn("has no extended mode", str(context.exception))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_retries_when_commentary_is_too_long(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = TooLongCommentaryModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="A big release still hides the real workflow cost", url="https://example.com/1"),
+                            self._signal(
+                                title="Release notes rarely mention the operational burden",
+                                source="rss:blog",
+                                url="https://example.com/release",
+                                excerpt="A technical commentary on hidden operational cost.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            result = agent.run(
+                RunOptions(day_override="Thursday", post_type_override="commentary", format_override="text", send_email=False)
+            )
+
+            self.assertEqual(len(model.generate_calls), 2)
+            self.assertIn("length limit", (model.generate_calls[1] or "").lower())
+            self.assertEqual(result.generated_content.primary.length_mode, "standard")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -714,7 +1066,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Saturday", send_email=False))
+            result = agent.run(RunOptions(day_override="Saturday", format_override="text", send_email=False))
 
             self.assertEqual(len(model.feedback_seen), 2)
             self.assertIn("started treating", result.generated_content.primary.draft_post.lower())
@@ -749,7 +1101,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Saturday", send_email=False))
+            result = agent.run(RunOptions(day_override="Saturday", format_override="text", send_email=False))
 
             self.assertEqual(len(model.generate_calls), 2)
             self.assertLessEqual(len(result.generated_content.primary.core_idea), 5)
@@ -784,7 +1136,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Monday", send_email=False))
+            result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
 
             self.assertEqual(len(model.generate_calls), 2)
             self.assertEqual(result.generated_content.truth_profile.authority_mode, "applied_analyst")
@@ -826,7 +1178,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Monday", send_email=False))
+            result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
 
             self.assertEqual(
                 model.attempted_titles,
@@ -870,7 +1222,7 @@ class PipelineTests(unittest.TestCase):
                 ],
             )
 
-            result = agent.run(RunOptions(day_override="Thursday", send_email=False))
+            result = agent.run(RunOptions(day_override="Thursday", format_override="text", send_email=False))
 
             self.assertGreaterEqual(len(model.attempted_titles), 3)
             self.assertEqual(result.summary.selected_topic, "Protocol adherence is the hidden eval boundary in agents")
@@ -900,7 +1252,7 @@ class PipelineTests(unittest.TestCase):
             )
 
             with self.assertRaises(RuntimeError) as context:
-                agent.run(RunOptions(day_override="Monday", send_email=False))
+                agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
 
             self.assertIn("No candidate passed the truth/originality guard", str(context.exception))
         finally:

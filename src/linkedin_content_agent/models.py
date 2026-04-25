@@ -18,6 +18,8 @@ SourceQuality = Literal["first_hand", "reproducible", "technical_writeup", "disc
 ConflictLevel = Literal["low", "medium", "high"]
 CreatorPostType = Literal["insight", "relatable", "commentary", "teaching", "inspiration"]
 TopicPillar = Literal["ai_ml", "data_engineering", "python_backend", "beginner_practice", "career_insight", ""]
+ContentFormat = Literal["text", "photo", "screenshot", "carousel", "infographic"]
+LengthMode = Literal["standard", "extended"]
 
 
 @dataclass(slots=True)
@@ -121,6 +123,7 @@ class TopicContext:
     creator_post_type: CreatorPostType = "insight"
     day_tone_hint: str = ""
     topic_pillar: TopicPillar = ""
+    content_format: ContentFormat = "text"
 
 
 @dataclass(slots=True)
@@ -148,6 +151,24 @@ class ImageSuggestion:
 
 
 @dataclass(slots=True)
+class CarouselSlide:
+    title: str
+    bullets: list[str]
+
+
+@dataclass(slots=True)
+class FormatPlan:
+    format: ContentFormat
+    what_to_create: str
+    why_this_format: str
+    asset_brief: list[str]
+    deadline_hint: str
+    caption_note: str
+    visual_structure: str | None = None
+    slides: list[CarouselSlide] | None = None
+
+
+@dataclass(slots=True)
 class PostPackage:
     day: str
     post_type: str
@@ -159,6 +180,8 @@ class PostPackage:
     source_refs: list[SourceReference]
     self_audit: SelfAudit
     image_suggestion: ImageSuggestion | None = None
+    length_mode: LengthMode = "standard"
+    length_mode_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -179,6 +202,8 @@ class GeneratedContent:
     originality_audit: OriginalityAudit | None = None
     topic_dossier: TopicDossier | None = None
     truth_profile: TruthProfile | None = None
+    format_plan: FormatPlan | None = None
+    backup_text_post: PostPackage | None = None
 
 
 @dataclass(slots=True)
@@ -205,6 +230,7 @@ class RunSummary:
     post_type: str
     creator_post_type: CreatorPostType | str
     topic_pillar: TopicPillar | str
+    content_format: ContentFormat | str
     selected_topic: str
     status: str
     source_count: int
@@ -240,6 +266,7 @@ class RunOptions:
     day_override: str | None = None
     topic_override: str | None = None
     post_type_override: CreatorPostType | None = None
+    format_override: ContentFormat | None = None
     send_email: bool = True
 
 
@@ -272,3 +299,4 @@ class RunContext:
     day: str
     post_type: str
     creator_post_type: CreatorPostType | str = ""
+    content_format: ContentFormat | str = "text"

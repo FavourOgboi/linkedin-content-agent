@@ -22,6 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="post_type_override",
         choices=["insight", "relatable", "commentary", "teaching", "inspiration"],
     )
+    run_parser.add_argument(
+        "--format",
+        dest="format_override",
+        choices=["text", "photo", "screenshot", "carousel", "infographic"],
+    )
     run_parser.add_argument("--skip-email", action="store_true")
 
     review_parser = subparsers.add_parser("review", help="Record a review decision for a previous run.")
@@ -54,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
             day_override=args.day_override,
             topic_override=args.topic_override,
             post_type_override=args.post_type_override,
+            format_override=args.format_override,
             send_email=not args.skip_email,
         )
     )

@@ -6,10 +6,30 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from linkedin_content_agent.config import AppConfig
-from linkedin_content_agent.content_strategy import VOICE_PROFILE, get_day_tone_hint, get_evidence_policy, get_template
+from linkedin_content_agent.content_strategy import (
+    VOICE_PROFILE,
+    get_day_tone_hint,
+    get_evidence_policy,
+    get_format_instruction,
+    get_length_policy,
+    get_template,
+)
 from linkedin_content_agent.day_contracts import DayContract
 from linkedin_content_agent.json_schemas import AUDIT_RESULT_SCHEMA, GENERATION_PAYLOAD_SCHEMA, ORIGINALITY_AUDIT_SCHEMA, TOPIC_SELECTION_SCHEMA
-from linkedin_content_agent.models import BackupIdea, GeneratedContent, ImageSuggestion, ModelAuditResult, OriginalityAudit, PostPackage, SelfAudit, SourceReference, TopicContext, TopicSelection
+from linkedin_content_agent.models import (
+    BackupIdea,
+    CarouselSlide,
+    FormatPlan,
+    GeneratedContent,
+    ImageSuggestion,
+    ModelAuditResult,
+    OriginalityAudit,
+    PostPackage,
+    SelfAudit,
+    SourceReference,
+    TopicContext,
+    TopicSelection,
+)
 
 
 BASE_VOICE_PROMPT = """
@@ -27,6 +47,25 @@ Hard rules:
 - No generic motivation, no empty hype, no documentation voice.
 - If the draft has nothing original to say, say less, not more.
 - Keep the post easy to scan in one pass.
+
+HOOK DISCIPLINE - enforced on every post:
+- Line 1 must lead with tension, mistake, surprise, or human truth.
+- Never: "Saw a...", "I saw...", "I read...", "I came across..."
+- Never open with a source name, tool name, company name, or project name.
+- The source belongs in passing, line 2 or 3 at the latest.
+- Exception for commentary only: the event can be line 1 if the tension is inside the same line.
+
+INVISIBLE STRUCTURE - enforced on every post:
+- Never label paragraphs. No headers inside the post body.
+- "Common mistake:" is banned even as an opener. Write it as a statement.
+- Read the draft out loud. If it sounds like a report, rewrite it.
+
+SELF-CHECK BEFORE RETURNING:
+1. Does line 1 start with tension, not a source?
+2. Are there any paragraph labels anywhere?
+3. Does it read like a person talking or a structured explainer?
+4. Would you stop scrolling for line 1?
+If any answer is wrong, rewrite before returning.
 """.strip()
 
 TRUTH_AND_ORIGINALITY_APPENDIX = """
@@ -62,14 +101,24 @@ def _load_voice_profile() -> dict[str, Any]:
 _VOICE_PROFILE = _load_voice_profile()
 
 
-def build_system_prompt(post_type: str, day_name: str = "", truth_profile: dict[str, Any] | None = None) -> str:
+def build_system_prompt(
+    post_type: str,
+    day_name: str = "",
+    truth_profile: dict[str, Any] | None = None,
+    *,
+    content_format: str = "text",
+) -> str:
     profile = _VOICE_PROFILE
     type_note = str(profile.get("post_type_notes", {}).get(post_type, "")).strip()
     template = get_template(post_type)
+    format_instruction = get_format_instruction(content_format)
+    length_policy = get_length_policy(post_type)
     day_hint = get_day_tone_hint(day_name) if day_name else ""
     evidence_policy = get_evidence_policy(post_type)
     banned_words = ", ".join(profile.get("banned_words", []))
     hook_patterns = "\n".join(f"- {pattern}" for pattern in profile.get("hook_patterns", []))
+    hook_bans = "\n".join(f"- {pattern}" for pattern in profile.get("hook_bans", []))
+    format_bans = "\n".join(f"- {pattern}" for pattern in profile.get("format_bans", []))
     base_rules = "\n".join(f"- {rule}" for rule in profile.get("base_rules", []))
 
     sections = [
@@ -82,10 +131,26 @@ def build_system_prompt(post_type: str, day_name: str = "", truth_profile: dict[
         sections.append(f"NEVER USE THESE CORPORATE WORDS\n{banned_words}")
     if hook_patterns:
         sections.append(f"HOOK PATTERNS\n{hook_patterns}")
+    if hook_bans:
+        sections.append(f"HOOK DISCIPLINE\n{hook_bans}")
+    if format_bans:
+        sections.append(f"INVISIBLE STRUCTURE\n{format_bans}")
     if type_note:
         sections.append(f"POST TYPE: {post_type.upper()}\n{type_note}")
+    sections.append(f"CONTENT FORMAT: {content_format.upper()}")
     if template:
         sections.append(f"TEMPLATE FOR THIS POST TYPE\n{template}")
+    if format_instruction:
+        sections.append(f"FORMAT INSTRUCTIONS\n{format_instruction}")
+    sections.append(
+        "LENGTH POLICY\n"
+        f"- Standard max words: {length_policy['standard']}\n"
+        f"- Extended max words: {length_policy['extended']}\n"
+        f"- Max non-empty lines: {length_policy['max_lines']}\n"
+        "- Aim for standard mode by default.\n"
+        "- Use extended only if the concept loses honesty or clarity when compressed.\n"
+        "- If you use extended, provide a one-sentence justification in `length_mode_reason`."
+    )
     if day_hint:
         sections.append(f"TODAY'S TONE HINT\n{day_hint}")
     sections.append(
@@ -236,7 +301,11 @@ class OpenAIContentModel:
             payload = self._structured_call(
                 schema_name="topic_selection",
                 schema=TOPIC_SELECTION_SCHEMA,
-                system_prompt=build_system_prompt(topic_contexts[0].creator_post_type, contract.day),
+                system_prompt=build_system_prompt(
+                    topic_contexts[0].creator_post_type,
+                    contract.day,
+                    content_format=topic_contexts[0].content_format,
+                ),
                 user_prompt=prompt,
                 reasoning_effort=self.config.selection_reasoning,
             )
@@ -263,11 +332,13 @@ class OpenAIContentModel:
             post_type=topic_context.creator_post_type,
             day_name=contract.day,
             truth_profile=asdict(topic_context.truth_profile),
+            content_format=topic_context.content_format,
         )
         prompt_parts = [
             creator_context,
             f"Today is {contract.day}. Legacy weekday label: {contract.post_type}.",
             f"Creator post type: {topic_context.creator_post_type}.",
+            f"Content format: {topic_context.content_format}.",
             f"Tone hint: {topic_context.day_tone_hint}",
             f"Contract description: {contract.description}",
             f"Legacy weekday requirements (soft bias, not the whole post): {', '.join(contract.requirements)}",
@@ -286,9 +357,13 @@ class OpenAIContentModel:
             json.dumps([asdict(context) for context in reference_contexts[:5]], indent=2),
             "",
             "Return one primary post package and exactly two backup ideas.",
+            f"Return `content_format` as '{topic_context.content_format}'.",
             "The primary core_idea array must contain 3 to 5 bullets only. Four is ideal. Never return 6 bullets.",
             "The primary post must use the exact output structure. It must not sound motivational, journalistic, or generic.",
             f"The primary post_type must be '{topic_context.creator_post_type}'.",
+            "The primary post is always the public-facing caption or main text for the selected format.",
+            "For non-text formats, `format_plan` is required and `backup_text_post` is required as a full plain-text fallback.",
+            "For text format, both `format_plan` and `backup_text_post` must be null.",
             f"Authority mode for this post: {topic_context.truth_profile.authority_mode}.",
             f"Allowed claim posture: {topic_context.truth_profile.allowed_claim_posture}",
             f"Provenance rule: {topic_context.truth_profile.provenance_rule}",
@@ -297,7 +372,7 @@ class OpenAIContentModel:
             "You must add a deeper mechanism, contradiction, or applied system explanation that makes the idea feel owned rather than aggregated.",
             "Never present an external experiment as if the creator ran it.",
             "If explicit provenance is required, make that clear in the hook or first two lines.",
-            "If the post type is relatable or commentary, include an image suggestion that feels native to that format.",
+            "Image suggestions should feel native to the chosen format.",
             *_day_specific_generation_hints(contract),
         ]
         if revision_feedback:
@@ -317,21 +392,12 @@ class OpenAIContentModel:
             user_prompt="\n".join(prompt_parts),
             reasoning_effort=self.config.generation_reasoning,
         )
+        if payload["content_format"] != topic_context.content_format:
+            raise RuntimeError(
+                f"Model returned content_format '{payload['content_format']}' but '{topic_context.content_format}' was required."
+            )
         primary_payload = payload["primary"]
-        primary = PostPackage(
-            day=primary_payload["day"],
-            post_type=primary_payload["post_type"],
-            hook=primary_payload["hook"],
-            core_idea=list(primary_payload["core_idea"]),
-            draft_post=primary_payload["draft_post"],
-            visual_suggestion=primary_payload["visual_suggestion"],
-            why_this_works=primary_payload["why_this_works"],
-            source_refs=[SourceReference(**item) for item in primary_payload["source_refs"]],
-            self_audit=SelfAudit(**primary_payload["self_audit"]),
-            image_suggestion=ImageSuggestion(**primary_payload["image_suggestion"])
-            if primary_payload.get("image_suggestion")
-            else None,
-        )
+        primary = self._post_package_from_payload(primary_payload)
         backups = [
             BackupIdea(
                 title=backup["title"],
@@ -343,12 +409,16 @@ class OpenAIContentModel:
             )
             for backup in payload["backups"]
         ]
+        format_plan = self._format_plan_from_payload(payload.get("format_plan"))
+        backup_text_post = self._post_package_from_payload(payload["backup_text_post"]) if payload.get("backup_text_post") else None
         return GeneratedContent(
             primary=primary,
             backups=backups,
             selected_topic_reason=payload["selected_topic_reason"],
             topic_dossier=topic_context.dossier,
             truth_profile=topic_context.truth_profile,
+            format_plan=format_plan,
+            backup_text_post=backup_text_post,
         )
 
     def assess_originality(
@@ -380,7 +450,12 @@ class OpenAIContentModel:
         payload = self._structured_call(
             schema_name="originality_audit",
             schema=ORIGINALITY_AUDIT_SCHEMA,
-            system_prompt=build_system_prompt(topic_context.creator_post_type, contract.day, asdict(topic_context.truth_profile)),
+            system_prompt=build_system_prompt(
+                topic_context.creator_post_type,
+                contract.day,
+                asdict(topic_context.truth_profile),
+                content_format=topic_context.content_format,
+            ),
             user_prompt=prompt,
             reasoning_effort=self.config.audit_reasoning,
         )
@@ -415,8 +490,45 @@ class OpenAIContentModel:
         payload = self._structured_call(
             schema_name="audit_result",
             schema=AUDIT_RESULT_SCHEMA,
-            system_prompt=build_system_prompt(topic_context.creator_post_type, contract.day, asdict(topic_context.truth_profile)),
+            system_prompt=build_system_prompt(
+                topic_context.creator_post_type,
+                contract.day,
+                asdict(topic_context.truth_profile),
+                content_format=topic_context.content_format,
+            ),
             user_prompt=prompt,
             reasoning_effort=self.config.audit_reasoning,
         )
         return ModelAuditResult(**payload)
+
+    def _post_package_from_payload(self, payload: dict[str, Any]) -> PostPackage:
+        return PostPackage(
+            day=payload["day"],
+            post_type=payload["post_type"],
+            hook=payload["hook"],
+            core_idea=list(payload["core_idea"]),
+            draft_post=payload["draft_post"],
+            visual_suggestion=payload["visual_suggestion"],
+            why_this_works=payload["why_this_works"],
+            source_refs=[SourceReference(**item) for item in payload["source_refs"]],
+            self_audit=SelfAudit(**payload["self_audit"]),
+            image_suggestion=ImageSuggestion(**payload["image_suggestion"]) if payload.get("image_suggestion") else None,
+            length_mode=payload.get("length_mode", "standard"),
+            length_mode_reason=payload.get("length_mode_reason"),
+        )
+
+    def _format_plan_from_payload(self, payload: dict[str, Any] | None) -> FormatPlan | None:
+        if not payload:
+            return None
+        slides_payload = payload.get("slides")
+        slides = [CarouselSlide(title=item["title"], bullets=list(item["bullets"])) for item in slides_payload] if slides_payload else None
+        return FormatPlan(
+            format=payload["format"],
+            what_to_create=payload["what_to_create"],
+            why_this_format=payload["why_this_format"],
+            asset_brief=list(payload["asset_brief"]),
+            deadline_hint=payload["deadline_hint"],
+            caption_note=payload["caption_note"],
+            visual_structure=payload.get("visual_structure"),
+            slides=slides,
+        )

@@ -6,12 +6,14 @@ This project generates one creator-first LinkedIn post package plus two backup i
 
 - Collects compliant public signals from RSS, Hacker News, Reddit, and optional YouTube feeds
 - Selects a creator post type (`insight`, `relatable`, `commentary`, `teaching`, `inspiration`) with stable day-based weighting
+- Selects a content format (`text`, `photo`, `screenshot`, `carousel`, `infographic`) with stable day-based weighting
 - Builds a topic dossier for shortlisted angles, including supporting or conflicting sources
 - Assigns a truth profile so the draft knows whether it should sound like a builder, applied analyst, amplifier, exploratory voice, or light reflection
 - Uses the OpenAI Responses API with structured JSON outputs
 - Loads a tracked voice profile from `config/voice_profile.json`
 - Runs deterministic and model-based anti-generic checks
 - Runs separate truth-alignment and originality guards before anything ships
+- Enforces creator-post length on the public-facing copy instead of letting drafts sprawl
 - Archives every run to JSONL, Markdown, JSON, and a rebuildable SQLite cache
 - Captures review decisions through a dedicated CLI command
 
@@ -47,6 +49,12 @@ You can also force the creator post type for a run:
 
 ```bash
 python -m linkedin_content_agent.cli run --day Tuesday --post-type teaching --skip-email
+```
+
+You can also force the content format for a run:
+
+```bash
+python -m linkedin_content_agent.cli run --day Tuesday --post-type teaching --format carousel --skip-email
 ```
 
 6. Record a review decision:
@@ -104,6 +112,12 @@ Let the system auto-pick the topic, but force a creator mode:
 python -m linkedin_content_agent.cli run --post-type commentary --skip-email
 ```
 
+Force both a creator post type and a format:
+
+```bash
+python -m linkedin_content_agent.cli run --post-type teaching --format infographic --skip-email
+```
+
 Record your review decision after a run:
 
 ```bash
@@ -120,7 +134,7 @@ Artifacts are written locally to:
 
 ## Creator-First Strategy
 
-The agent now separates weekday tone from creator post type:
+The agent now separates weekday tone, creator post type, and content format:
 
 - Weekday contracts still exist, but they act as a soft bias instead of a hard writing cage
 - The main content system is now:
@@ -130,8 +144,37 @@ The agent now separates weekday tone from creator post type:
   - `teaching`
   - `inspiration`
 - The post type is selected deterministically from the day plus recent history unless you override it with `--post-type`
+- The format is selected deterministically from the day plus recent history unless you override it with `--format`
+- Manual-required formats always include a fallback plain-text post so you are never blocked
 - Source selection is broader by default now, with stable feeds across data engineering, Python/backend, ML/AI, and practical learning topics
 - Release-chasing LLM benchmark topics are penalized instead of dominating the queue
+
+## Content Format Layer
+
+Each run now chooses **how** the idea should show up, not just **what** it should say.
+
+- `text`
+  - A normal LinkedIn text post
+- `photo`
+  - A caption post plus a concrete brief for what to photograph
+- `screenshot`
+  - A caption post plus an exact screenshot brief, including what to crop or hide
+- `carousel`
+  - A slide-by-slide outline plus the caption that goes with it
+- `infographic`
+  - A visual brief plus the caption that goes with it
+
+For non-text formats, the run output includes:
+
+- the main caption/public copy
+- a structured format plan
+- a backup plain-text post in case you do not want to create the asset that day
+
+The email subject now includes the selected format, for example:
+
+- `Tuesday - teaching - CAROUSEL`
+- `Friday - relatable - SCREENSHOT`
+- `Saturday - inspiration - PHOTO`
 
 ## Truth-Aligned Authority Engine
 
@@ -155,6 +198,39 @@ Reviewer-facing artifacts now include:
 - originality audit
 
 The public-facing LinkedIn draft does not expose those reviewer labels.
+
+## Length Governance
+
+The agent now enforces length on the actual public-facing post copy only:
+
+- `hook`
+- `draft_post`
+
+It does **not** count reviewer metadata such as:
+
+- `core_idea`
+- `why_this_works`
+- truth/originality review notes
+
+Length rules are post-type-aware:
+
+- `insight`
+  - standard max `140` words, extended max `220`, max `12` non-empty lines
+- `relatable`
+  - standard max `70` words, no extended mode, max `6` non-empty lines
+- `commentary`
+  - standard max `160` words, extended max `250`, max `14` non-empty lines
+- `teaching`
+  - standard max `170` words, extended max `280`, max `16` non-empty lines
+- `inspiration`
+  - standard max `90` words, no extended mode, max `7` non-empty lines
+
+Important rules:
+
+- `extended` length is allowed only for `insight`, `commentary`, and `teaching`
+- if the model requests `extended`, it must provide a one-sentence reason
+- there is no minimum-word filler rule; brevity is allowed if the post lands cleanly
+- hashtag-only lines are ignored for word-count enforcement
 
 ## Optional Run Notes
 

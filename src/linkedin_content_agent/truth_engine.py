@@ -538,7 +538,13 @@ def build_topic_context(candidate: TopicCandidate, signals: list[Signal], contra
             break
 
     stronger_source_present = any(source.source_quality in {"first_hand", "reproducible"} for source in sources)
-    weak_signal_echo = len(sources) >= 3 and all(source.source_quality == "discussion" for source in sources)
+    discussion_sources = sum(source.source_quality == "discussion" for source in sources)
+    primary_is_discussion = bool(sources) and sources[0].source_quality == "discussion"
+    weak_signal_echo = (
+        primary_is_discussion
+        and discussion_sources >= 3
+        and discussion_sources > (len(sources) - discussion_sources)
+    )
     consensus_summary, disagreement_notes, conflict_level = _consensus_and_disagreement(sources, weak_signal_echo=weak_signal_echo)
     dossier = TopicDossier(
         topic_title=candidate.title,
@@ -567,6 +573,7 @@ def build_topic_contexts(
     run_notes_dir: Path,
     creator_post_type: str = "insight",
     day_tone_hint: str = "",
+    content_format: str = "text",
 ) -> list[TopicContext]:
     run_notes = load_run_notes(run_notes_dir)
     contexts: list[TopicContext] = []
@@ -575,5 +582,6 @@ def build_topic_contexts(
         context.creator_post_type = creator_post_type
         context.day_tone_hint = day_tone_hint
         context.topic_pillar = classify_pillar(" ".join([candidate.title, *candidate.evidence]))
+        context.content_format = content_format
         contexts.append(context)
     return contexts

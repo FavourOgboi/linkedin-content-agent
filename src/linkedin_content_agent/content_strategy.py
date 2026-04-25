@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 CreatorPostType = Literal["insight", "relatable", "commentary", "teaching", "inspiration"]
 TopicPillar = Literal["ai_ml", "data_engineering", "python_backend", "beginner_practice", "career_insight", ""]
+ContentFormat = Literal["text", "photo", "screenshot", "carousel", "infographic"]
 
 CREATOR_POST_TYPES: tuple[CreatorPostType, ...] = (
     "insight",
@@ -16,6 +17,14 @@ CREATOR_POST_TYPES: tuple[CreatorPostType, ...] = (
     "commentary",
     "teaching",
     "inspiration",
+)
+
+CONTENT_FORMATS: tuple[ContentFormat, ...] = (
+    "text",
+    "photo",
+    "screenshot",
+    "carousel",
+    "infographic",
 )
 
 LEGACY_POST_TYPE_MAP: dict[str, CreatorPostType] = {
@@ -38,6 +47,16 @@ POST_TYPE_WEIGHTS: dict[str, dict[CreatorPostType, int]] = {
     "Sunday": {"insight": 25, "relatable": 20, "commentary": 15, "teaching": 10, "inspiration": 30},
 }
 
+FORMAT_WEIGHTS_BY_DAY: dict[str, dict[ContentFormat, int]] = {
+    "Monday": {"text": 40, "photo": 30, "screenshot": 10, "carousel": 5, "infographic": 15},
+    "Tuesday": {"text": 20, "photo": 5, "screenshot": 20, "carousel": 40, "infographic": 15},
+    "Wednesday": {"text": 45, "photo": 5, "screenshot": 15, "carousel": 20, "infographic": 15},
+    "Thursday": {"text": 25, "photo": 5, "screenshot": 25, "carousel": 20, "infographic": 25},
+    "Friday": {"text": 30, "photo": 15, "screenshot": 30, "carousel": 15, "infographic": 10},
+    "Saturday": {"text": 20, "photo": 45, "screenshot": 10, "carousel": 10, "infographic": 15},
+    "Sunday": {"text": 35, "photo": 35, "screenshot": 10, "carousel": 10, "infographic": 10},
+}
+
 DAY_TONE_HINTS = {
     "Monday": "Start the week with useful energy. Encourage momentum, but keep the value concrete.",
     "Tuesday": "Stay practical and narrow. Teach something small and genuinely helpful.",
@@ -52,8 +71,68 @@ POST_TYPE_TEMPLATES = {
     "insight": "Hook\nObservation\nPattern or shift in thinking\nImplication or lesson",
     "relatable": "Scenario\nRecognition moment\nUnderlying truth\nOptional short takeaway",
     "commentary": "Hook\nWhat happened in one line\nYour take\nWhy it matters",
-    "teaching": "Misconception\nSimple explanation\nExample\nPractical takeaway",
+    "teaching": """\
+Write this as flowing short paragraphs, not labeled sections.
+
+Invisible structure to follow (do NOT label these in the post):
+1. Open with the mistake or the gap, stated as a plain observation
+2. Explain why people make that mistake in one sentence
+3. Give the better mental model or approach in plain language
+4. Use one concrete example, analogy, or code line only if it sharpens the point
+5. Close with the practical implication and mention the source casually near the end
+
+Rules:
+- No paragraph headers. No 'Takeaway:' or 'Why this works:' or any label.
+- One concept only. Narrow scope equals better post.
+- Source or project reference goes near the close, one casual line only.
+- If you feel like adding a bullet list, rewrite it as a sentence instead.
+""",
     "inspiration": "Specific moment\nQuiet lesson\nShort close",
+}
+
+FORMAT_OUTPUT_SPEC: dict[ContentFormat, str] = {
+    "text": """\
+FORMAT OUTPUT: TEXT
+- Generate a normal LinkedIn text post only.
+- `format_plan` must be null.
+- `backup_text_post` must be null.
+""",
+    "photo": """\
+FORMAT OUTPUT: PHOTO
+- Generate the main caption/post as `primary`.
+- Generate a `format_plan` that tells the creator exactly what photo to take.
+- The asset brief must specify what should be visible, what to avoid, and why the image fits the post.
+- Generate a full `backup_text_post` in case the creator does not want to take the photo today.
+""",
+    "screenshot": """\
+FORMAT OUTPUT: SCREENSHOT
+- Generate the main caption/post as `primary`.
+- Generate a `format_plan` that says exactly what to screenshot, what to crop, and what to hide.
+- The screenshot must feel like the point, not decoration.
+- Generate a full `backup_text_post` in case the creator does not want to capture the screenshot today.
+""",
+    "carousel": """\
+FORMAT OUTPUT: CAROUSEL
+- Generate the posting caption as `primary`.
+- Generate a `format_plan` with slide-by-slide outline in `slides`.
+- Each slide needs a short title and tight bullets that can be read quickly.
+- Generate a full `backup_text_post` in case the creator does not want to build the carousel today.
+""",
+    "infographic": """\
+FORMAT OUTPUT: INFOGRAPHIC
+- Generate the posting caption as `primary`.
+- Generate a `format_plan` with a clear visual structure and a concrete asset brief.
+- The infographic should explain one concept visually, not become a dense poster.
+- Generate a full `backup_text_post` in case the creator does not want to design the infographic today.
+""",
+}
+
+POST_TYPE_LENGTH_POLICY: dict[CreatorPostType, dict[str, int]] = {
+    "insight": {"standard": 140, "extended": 220, "max_lines": 12},
+    "relatable": {"standard": 70, "extended": 70, "max_lines": 6},
+    "commentary": {"standard": 160, "extended": 250, "max_lines": 14},
+    "teaching": {"standard": 170, "extended": 280, "max_lines": 16},
+    "inspiration": {"standard": 90, "extended": 90, "max_lines": 7},
 }
 
 EVIDENCE_POLICIES: dict[CreatorPostType, dict[str, Any]] = {
@@ -209,12 +288,20 @@ def get_template(post_type: str) -> str:
     return POST_TYPE_TEMPLATES.get(post_type, "")
 
 
+def get_format_instruction(content_format: str) -> str:
+    return FORMAT_OUTPUT_SPEC.get(content_format, FORMAT_OUTPUT_SPEC["text"])
+
+
 def get_evidence_policy(post_type: str) -> dict[str, Any]:
     return dict(EVIDENCE_POLICIES.get(post_type, EVIDENCE_POLICIES["insight"]))
 
 
 def get_originality_threshold(post_type: str) -> float:
     return float(ORIGINALITY_THRESHOLDS.get(post_type, ORIGINALITY_THRESHOLDS["insight"]))
+
+
+def get_length_policy(post_type: str) -> dict[str, int]:
+    return dict(POST_TYPE_LENGTH_POLICY.get(post_type, POST_TYPE_LENGTH_POLICY["insight"]))
 
 
 def get_banned_words() -> tuple[str, ...]:
@@ -254,6 +341,29 @@ def select_post_type(
 
     current_date = seed_date or date.today()
     seed = f"{current_date.isoformat()}::{day_name}::{','.join(recent_types[:4])}"
+    return _weighted_choice(weights, seed=seed)
+
+
+def select_content_format(
+    day_name: str,
+    recent_formats: list[str] | None = None,
+    *,
+    seed_date: date | None = None,
+) -> ContentFormat:
+    recent_formats = recent_formats or []
+    weights = {
+        content_format: float(weight)
+        for content_format, weight in FORMAT_WEIGHTS_BY_DAY.get(day_name, FORMAT_WEIGHTS_BY_DAY["Monday"]).items()
+    }
+
+    for index, recent in enumerate(recent_formats[:4]):
+        if recent not in weights:
+            continue
+        decay = 0.5 if index == 0 else 0.65 if index == 1 else 0.78 if index == 2 else 0.88
+        weights[recent] *= decay
+
+    current_date = seed_date or date.today()
+    seed = f"{current_date.isoformat()}::{day_name}::format::{','.join(recent_formats[:4])}"
     return _weighted_choice(weights, seed=seed)
 
 

@@ -37,6 +37,18 @@
     "Start with the reaction: 'Google just acquired X. Everyone: big news. Me: who is cleaning the training data?'",
     "Name the stage: 'Six months ago you did not know what a REST API was. Today it is just Tuesday.'"
   ],
+  "hook_bans": [
+    "Never open with: I saw, Saw a, I read, I came across, I found, I noticed a project",
+    "Never open with a source name, tool name, or project name",
+    "The first line must contain a tension, mistake, surprise, or human truth",
+    "The source that inspired the post belongs in line 2 or 3, mentioned in passing"
+  ],
+  "format_bans": [
+    "Never use labeled paragraph headers: Takeaway:, Common mistake:, Why this works:, Simple idea:, Pattern in code:, Tradeoff:",
+    "Never use 'Common mistake:' as a hook starter. Write the mistake as a statement instead",
+    "Structure must be invisible to the reader",
+    "Posts must read like a person talking, not a structured explainer"
+  ],
   "post_type_notes": {
     "insight": "Perspective-first. No citations unless a hard stat is used. First person welcome.",
     "relatable": "Humor from specificity not effort. Short. Always suggest an image.",

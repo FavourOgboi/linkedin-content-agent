@@ -9,6 +9,8 @@ POST_TYPE_ENUM = [
     "teaching",
     "inspiration",
 ]
+CONTENT_FORMAT_ENUM = ["text", "photo", "screenshot", "carousel", "infographic"]
+LENGTH_MODE_ENUM = ["standard", "extended"]
 TRANSFORMATION_TYPE_ENUM = ["reframed", "deepened", "challenged", "applied"]
 ORIGINALITY_DECISION_ENUM = ["approve", "reject"]
 
@@ -46,6 +48,41 @@ IMAGE_SUGGESTION_SCHEMA = {
     "additionalProperties": False,
 }
 
+CAROUSEL_SLIDE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "bullets": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "bullets"],
+    "additionalProperties": False,
+}
+
+FORMAT_PLAN_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "format": {"type": "string", "enum": CONTENT_FORMAT_ENUM},
+        "what_to_create": {"type": "string"},
+        "why_this_format": {"type": "string"},
+        "asset_brief": {"type": "array", "items": {"type": "string"}},
+        "deadline_hint": {"type": "string"},
+        "caption_note": {"type": "string"},
+        "visual_structure": {"type": ["string", "null"]},
+        "slides": {"type": ["array", "null"], "items": CAROUSEL_SLIDE_SCHEMA},
+    },
+    "required": [
+        "format",
+        "what_to_create",
+        "why_this_format",
+        "asset_brief",
+        "deadline_hint",
+        "caption_note",
+        "visual_structure",
+        "slides",
+    ],
+    "additionalProperties": False,
+}
+
 POST_PACKAGE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -59,6 +96,8 @@ POST_PACKAGE_SCHEMA = {
         "why_this_works": {"type": "string"},
         "source_refs": {"type": "array", "items": SOURCE_REFERENCE_SCHEMA, "minItems": 1},
         "self_audit": SELF_AUDIT_SCHEMA,
+        "length_mode": {"type": "string", "enum": LENGTH_MODE_ENUM},
+        "length_mode_reason": {"type": ["string", "null"]},
     },
     "required": [
         "day",
@@ -71,7 +110,16 @@ POST_PACKAGE_SCHEMA = {
         "why_this_works",
         "source_refs",
         "self_audit",
+        "length_mode",
+        "length_mode_reason",
     ],
+    "additionalProperties": False,
+}
+
+NULLABLE_POST_PACKAGE_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": POST_PACKAGE_SCHEMA["properties"],
+    "required": POST_PACKAGE_SCHEMA["required"],
     "additionalProperties": False,
 }
 
@@ -104,11 +152,14 @@ TOPIC_SELECTION_SCHEMA = {
 GENERATION_PAYLOAD_SCHEMA = {
     "type": "object",
     "properties": {
+        "content_format": {"type": "string", "enum": CONTENT_FORMAT_ENUM},
         "primary": POST_PACKAGE_SCHEMA,
         "backups": {"type": "array", "items": BACKUP_IDEA_SCHEMA, "minItems": 2, "maxItems": 2},
         "selected_topic_reason": {"type": "string"},
+        "format_plan": FORMAT_PLAN_SCHEMA,
+        "backup_text_post": NULLABLE_POST_PACKAGE_SCHEMA,
     },
-    "required": ["primary", "backups", "selected_topic_reason"],
+    "required": ["content_format", "primary", "backups", "selected_topic_reason", "format_plan", "backup_text_post"],
     "additionalProperties": False,
 }
 

@@ -6,6 +6,7 @@ import re
 from linkedin_content_agent.content_strategy import (
     get_banned_words,
     get_evidence_policy,
+    get_length_policy,
     get_originality_threshold,
     normalize_creator_post_type,
 )
@@ -176,6 +177,33 @@ PROMOTIONAL_PATTERNS = (
     "work with me",
 )
 
+WEAK_HOOK_PATTERNS = (
+    r"^(?:saw a|i saw|i read|i came across|i found|i noticed a)",
+    r"^(?:today i|this week i|recently i)\b",
+    r"^(?:there(?:'s| is) a (?:new |neat |cool |interesting )?)",
+)
+
+LABELED_PARAGRAPH_PATTERNS = (
+    r"^(?:takeaway|common mistake|simple idea|why this works|pattern in code|tradeoff|key insight|the lesson|the point|tldr|tl;dr)\s*:",
+)
+
+COMMENTARY_TENSION_WORDS = (
+    "but",
+    "why",
+    "nobody",
+    "wrong",
+    "fail",
+    "fails",
+    "failing",
+    "miss",
+    "misses",
+    "dead",
+    "kill",
+    "killed",
+    "problem",
+    "except",
+)
+
 
 def _collect_text(post: PostPackage) -> str:
     image_text = ""
@@ -200,6 +228,10 @@ def _collect_text(post: PostPackage) -> str:
             *post.self_audit.critic_notes,
         ]
     ).lower()
+
+
+def _public_post_text(post: PostPackage) -> str:
+    return "\n".join(part for part in [post.hook.strip(), post.draft_post.strip()] if part).strip()
 
 
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
@@ -265,6 +297,79 @@ def check_readability(post_text: str) -> list[str]:
     return issues
 
 
+def check_hook_discipline(post_text: str, post_type: str) -> list[str]:
+    issues: list[str] = []
+    lines = [line.strip() for line in post_text.splitlines() if line.strip()]
+    if not lines:
+        return issues
+
+    first_line = lines[0].lower()
+    for pattern in WEAK_HOOK_PATTERNS:
+        if not re.match(pattern, first_line):
+            continue
+        if post_type == "commentary":
+            if not any(word in first_line for word in COMMENTARY_TENSION_WORDS):
+                issues.append(
+                    f"Hook is source-first with no tension: '{lines[0]}'. For commentary, the event can open only if the tension is inside that same line."
+                )
+        else:
+            issues.append(f"Weak source-first hook: '{lines[0]}'. Lead with the tension or mistake, not the source.")
+        break
+
+    return issues
+
+
+def check_labeled_paragraphs(post_text: str) -> list[str]:
+    issues: list[str] = []
+    for raw_line in post_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        for pattern in LABELED_PARAGRAPH_PATTERNS:
+            if re.match(pattern, line.lower()):
+                issues.append(
+                    f"Labeled paragraph found: '{line}'. Structure must be invisible. Remove the label and write the content as a plain sentence."
+                )
+                break
+    return issues
+
+
+def check_post_length(post_text: str, post_type: str, length_mode: str = "standard", length_mode_reason: str | None = None) -> list[str]:
+    issues: list[str] = []
+    policy = get_length_policy(post_type)
+    length_mode_reason = (length_mode_reason or "").strip()
+
+    if length_mode == "extended" and policy["standard"] == policy["extended"]:
+        issues.append(
+            f"'{post_type}' has no extended mode. Rewrite to standard length instead of asking for more space."
+        )
+        return issues
+
+    if length_mode == "extended" and not length_mode_reason:
+        issues.append("Extended mode requires a non-empty length_mode_reason.")
+        return issues
+
+    max_words = policy["extended"] if length_mode == "extended" else policy["standard"]
+    content_lines = [
+        line.strip()
+        for line in post_text.strip().splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    word_count = len(" ".join(content_lines).split())
+    line_count = len(content_lines)
+
+    if word_count > max_words:
+        issues.append(
+            f"Post too long: {word_count} words. Hard max for '{post_type}' in {length_mode} mode is {max_words}. Cut the weakest line. Do not summarize."
+        )
+    if line_count > policy["max_lines"]:
+        issues.append(
+            f"Too many lines: {line_count}. Hard max for '{post_type}' is {policy['max_lines']} non-empty lines."
+        )
+
+    return issues
+
+
 def check_provenance_explicit(post_text: str, post_type: str, topic_context: TopicContext) -> list[str]:
     policy = get_evidence_policy(post_type)
     if not policy["requires_source"]:
@@ -280,6 +385,7 @@ def check_provenance_explicit(post_text: str, post_type: str, topic_context: Top
 def validate_post_package(post: PostPackage, contract: DayContract, topic_context: TopicContext | None = None) -> list[str]:
     issues: list[str] = []
     combined = _collect_text(post)
+    visible_post_text = _public_post_text(post)
     creator_post_type = normalize_creator_post_type(post.post_type)
 
     if not post.hook.strip():
@@ -304,12 +410,9 @@ def validate_post_package(post: PostPackage, contract: DayContract, topic_contex
     ) and not re.search(r"\d", combined):
         issues.append("Missing a concrete observation, technical term, or measurable detail.")
     issues.extend(check_readability(" ".join([post.hook, post.draft_post, post.why_this_works])))
-
-    draft_lines = [line.strip() for line in post.draft_post.splitlines() if line.strip()]
-    if creator_post_type == "teaching" and len(draft_lines) > 8:
-        issues.append("Teaching posts should stay focused and short. Reduce the number of non-empty lines.")
-    if creator_post_type == "relatable" and len(draft_lines) > 7:
-        issues.append("Relatable posts should stay short and quick to scan.")
+    issues.extend(check_hook_discipline(visible_post_text, creator_post_type))
+    issues.extend(check_labeled_paragraphs(visible_post_text))
+    issues.extend(check_post_length(visible_post_text, creator_post_type, post.length_mode, post.length_mode_reason))
 
     if creator_post_type in {"insight", "commentary", "teaching"} and not any(
         token in combined for token in ("mistake", "insight", "unexpected", "tradeoff")
@@ -408,7 +511,9 @@ def validate_truth_alignment(
         issues.append("Draft includes exact metrics without dossier support.")
 
     if dossier.weak_signal_echo and dossier.source_count >= 3:
-        issues.append("Topic relies on echoing low-quality sources without stronger technical support.")
+        issues.append(
+            "Topic is anchored in echoing low-quality sources. Reframe around the stronger technical source or drop the claim."
+        )
 
     if truth_profile.authority_mode == "exploratory":
         exploratory_markers = ("?", "worth testing", "i tried to replicate", "open question", "still testing", "not convinced")
@@ -446,6 +551,38 @@ def validate_generated_content(
     topic_context: TopicContext | None = None,
 ) -> list[str]:
     issues = validate_post_package(generated_content.primary, contract, topic_context)
+    expected_format = topic_context.content_format if topic_context is not None else "text"
+    if topic_context is not None and generated_content.primary.length_mode == "extended":
+        creator_post_type = normalize_creator_post_type(generated_content.primary.post_type)
+        policy = get_length_policy(creator_post_type)
+        if policy["standard"] == policy["extended"]:
+            issues.append(f"'{creator_post_type}' has no extended mode. Rewrite to standard length instead of asking for more space.")
+
+    if expected_format == "text":
+        if generated_content.format_plan is not None:
+            issues.append("Text runs must not include a format_plan.")
+        if generated_content.backup_text_post is not None:
+            issues.append("Text runs must not include a backup_text_post.")
+    else:
+        if generated_content.format_plan is None:
+            issues.append(f"{expected_format.capitalize()} runs require a format_plan.")
+        elif generated_content.format_plan.format != expected_format:
+            issues.append(
+                f"format_plan format '{generated_content.format_plan.format}' does not match expected format '{expected_format}'."
+            )
+        if generated_content.backup_text_post is None:
+            issues.append(f"{expected_format.capitalize()} runs require a backup_text_post fallback.")
+        else:
+            issues.extend(validate_post_package(generated_content.backup_text_post, contract, topic_context))
+        if expected_format == "carousel" and (
+            generated_content.format_plan is None or not generated_content.format_plan.slides
+        ):
+            issues.append("Carousel runs require at least one slide in format_plan.slides.")
+        if expected_format == "infographic" and (
+            generated_content.format_plan is None or not (generated_content.format_plan.visual_structure or "").strip()
+        ):
+            issues.append("Infographic runs require a visual_structure in the format_plan.")
+
     if len(generated_content.backups) != 2:
         issues.append("Exactly two backup ideas are required.")
     for backup in generated_content.backups:

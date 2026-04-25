@@ -13,9 +13,11 @@ if str(SRC) not in sys.path:
 from linkedin_content_agent.content_strategy import (
     POST_TYPE_WEIGHTS,
     get_evidence_policy,
+    get_length_policy,
     get_originality_threshold,
     normalize_creator_post_type,
     passes_topic_filter,
+    select_content_format,
     select_post_type,
 )
 from linkedin_content_agent.models import (
@@ -30,7 +32,7 @@ from linkedin_content_agent.models import (
 from linkedin_content_agent.openai_client import build_system_prompt, normalize_originality_score
 from linkedin_content_agent.rendering import render_markdown
 from linkedin_content_agent.storage import LocalHybridStorage
-from linkedin_content_agent.validation import check_readability
+from linkedin_content_agent.validation import check_post_length, check_readability
 
 
 class CreatorStrategyTests(unittest.TestCase):
@@ -43,6 +45,11 @@ class CreatorStrategyTests(unittest.TestCase):
         for day_name in POST_TYPE_WEIGHTS:
             result = select_post_type(day_name, recent_types=[], seed_date=date(2026, 4, 25))
             self.assertIn(result, POST_TYPE_WEIGHTS[day_name])
+
+    def test_same_date_produces_stable_content_format(self) -> None:
+        result_one = select_content_format("Tuesday", recent_formats=["text"], seed_date=date(2026, 4, 25))
+        result_two = select_content_format("Tuesday", recent_formats=["text"], seed_date=date(2026, 4, 25))
+        self.assertEqual(result_one, result_two)
 
     def test_on_brand_signal_passes_filter(self) -> None:
         self.assertTrue(passes_topic_filter("How to build a data pipeline with Airflow and dbt"))
@@ -57,14 +64,28 @@ class CreatorStrategyTests(unittest.TestCase):
     def test_originality_threshold_lower_for_relatable(self) -> None:
         self.assertLess(get_originality_threshold("relatable"), get_originality_threshold("insight"))
 
+    def test_length_policy_exposes_extended_mode_for_teaching(self) -> None:
+        policy = get_length_policy("teaching")
+        self.assertGreater(policy["extended"], policy["standard"])
+
     def test_build_system_prompt_includes_post_type_and_day_hint(self) -> None:
         prompt = build_system_prompt("insight", "Monday")
         self.assertIn("POST TYPE: INSIGHT", prompt)
         self.assertIn("TODAY'S TONE HINT", prompt)
+        self.assertIn("HOOK DISCIPLINE", prompt)
+        self.assertIn("INVISIBLE STRUCTURE", prompt)
 
     def test_readability_check_catches_corporate_language(self) -> None:
         issues = check_readability("We must leverage robust ecosystems to democratize seamless solutions.")
         self.assertTrue(issues)
+
+    def test_post_length_over_ceiling_fails(self) -> None:
+        issues = check_post_length(" ".join(["word"] * 200), "relatable", "standard", None)
+        self.assertTrue(issues)
+
+    def test_post_length_ignores_hashtag_lines(self) -> None:
+        issues = check_post_length("Good hook.\n\nGood body.\n\n#Python #Data #AI", "inspiration", "standard", None)
+        self.assertEqual(issues, [])
 
     def test_normalize_creator_post_type_maps_legacy_label(self) -> None:
         self.assertEqual(normalize_creator_post_type("Thinking / Reflection"), "inspiration")
@@ -90,6 +111,7 @@ class RenderingAndStorageTests(unittest.TestCase):
             post_type="Micro-Teach",
             creator_post_type="teaching",
             topic_pillar="python_backend",
+            content_format="text",
             selected_topic="Why schema validation matters",
             status="awaiting_review",
             source_count=1,

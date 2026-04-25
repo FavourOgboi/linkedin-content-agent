@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from linkedin_content_agent.config import AppConfig
-from linkedin_content_agent.content_strategy import get_day_tone_hint, passes_topic_filter, select_post_type
+from linkedin_content_agent.content_strategy import get_day_tone_hint, passes_topic_filter, select_content_format, select_post_type
 from linkedin_content_agent.day_contracts import resolve_day_contract, resolve_topic_choice
 from linkedin_content_agent.emailer import SMTPEmailSender
 from linkedin_content_agent.models import DeliveryResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicContext, TopicSelection
@@ -61,6 +61,14 @@ def _load_recent_pillars(storage: StorageBackend, n: int = 4) -> list[str]:
     return [str(run.get("topic_pillar", "")).strip() for run in recent_runs if run.get("topic_pillar")]
 
 
+def _load_recent_formats(storage: StorageBackend, n: int = 4) -> list[str]:
+    try:
+        recent_runs = storage.load_recent_runs(n=n)
+    except Exception:
+        return []
+    return [str(run.get("content_format", "")).strip() for run in recent_runs if run.get("content_format")]
+
+
 class ContentAgent:
     def __init__(
         self,
@@ -94,9 +102,15 @@ class ContentAgent:
             now = datetime.now(UTC)
         contract = resolve_day_contract(options.day_override, now=now, timezone=self.config.timezone)
         recent_types = _load_recent_post_types(self.storage, n=4)
+        recent_formats = _load_recent_formats(self.storage, n=4)
         creator_post_type = options.post_type_override or select_post_type(
             contract.day,
             recent_types,
+            seed_date=now.date(),
+        )
+        content_format = options.format_override or select_content_format(
+            contract.day,
+            recent_formats,
             seed_date=now.date(),
         )
         day_tone_hint = get_day_tone_hint(contract.day)
@@ -106,6 +120,7 @@ class ContentAgent:
             day=contract.day,
             post_type=contract.post_type,
             creator_post_type=creator_post_type,
+            content_format=content_format,
         )
 
         warnings: list[str] = []
@@ -131,6 +146,7 @@ class ContentAgent:
             run_notes_dir=self.config.run_notes_dir,
             creator_post_type=creator_post_type,
             day_tone_hint=day_tone_hint,
+            content_format=content_format,
         )
         topic_contexts = self._apply_pillar_diversity(topic_contexts)
         if not topic_contexts and not options.topic_override:
@@ -156,6 +172,7 @@ class ContentAgent:
             "run_id": context.run_id,
             "contract": asdict(contract),
             "creator_post_type": creator_post_type,
+            "content_format": content_format,
             "day_tone_hint": day_tone_hint,
             "initial_selection": asdict(effective_selection),
             "final_selection": asdict(accepted_selection),
@@ -186,6 +203,7 @@ class ContentAgent:
             prompt_payload=prompt_payload,
             creator_post_type=creator_post_type,
             topic_pillar=accepted_topic_context.topic_pillar,
+            content_format=content_format,
             review_url=review_url,
         )
         return AgentRunResult(
@@ -338,6 +356,7 @@ class ContentAgent:
             f"- Creator post type: {topic_context.creator_post_type}",
             f"- Day tone hint: {topic_context.day_tone_hint}",
             f"- Topic pillar: {topic_context.topic_pillar or 'unclassified'}",
+            f"- Content format: {topic_context.content_format}",
             f"- Authority mode: {truth_profile.authority_mode}",
             f"- Source ownership: {truth_profile.source_ownership}",
             f"- Evidence strength: {truth_profile.evidence_strength}",
@@ -384,6 +403,15 @@ class ContentAgent:
             lines.append("For Thursday, include the literal frame 'What this actually changes is ...' in the core idea or draft.")
         if contract.day == "Thursday" and "Thursday post must include implications." in issues:
             lines.append("For Thursday, include a literal implication line such as 'Implication:' or 'That means ...'.")
+        if any(issue.startswith("Post too long:") or issue.startswith("Too many lines:") for issue in issues):
+            lines.append(
+                "This draft exceeds the length limit for its post type. Cut the weakest line entirely. "
+                "If two sentences are doing the same job, delete one. The post must get sharper, not just shorter."
+            )
+        if any("Extended mode requires a non-empty length_mode_reason." in issue for issue in issues):
+            lines.append("If you use extended length_mode, add one direct sentence explaining why standard length would damage the post.")
+        if any("has no extended mode." in issue for issue in issues):
+            lines.append("Relatable and inspiration posts must stay in standard length mode. Rewrite tighter instead of requesting more space.")
 
         lines.append("Do not defend the current draft. Rewrite the affected sections so every deterministic issue disappears.")
         return "\n".join(lines)
@@ -527,6 +555,7 @@ class ContentAgent:
                 "day": context.day,
                 "post_type": context.post_type,
                 "creator_post_type": context.creator_post_type,
+                "content_format": context.content_format,
                 "topic_pillar": topic_pillar,
                 "selected_topic": selected_topic,
             },

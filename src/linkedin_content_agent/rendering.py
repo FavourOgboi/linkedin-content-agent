@@ -17,6 +17,58 @@ def render_image_suggestion(image_suggestion: dict | None, fallback: str = "") -
     ).strip()
 
 
+def render_format_plan(generated_content: GeneratedContent) -> list[str]:
+    if generated_content.format_plan is None:
+        return []
+
+    plan = generated_content.format_plan
+    lines = [
+        "## Format Plan",
+        f"- Format: {plan.format}",
+        f"- What to create: {plan.what_to_create}",
+        f"- Why this format: {plan.why_this_format}",
+        f"- Deadline: {plan.deadline_hint}",
+        f"- Caption note: {plan.caption_note}",
+    ]
+    if plan.visual_structure:
+        lines.append(f"- Visual structure: {plan.visual_structure}")
+    for item in plan.asset_brief:
+        lines.append(f"- Asset brief: {item}")
+    if plan.slides:
+        lines.append("")
+        lines.append("### Slides")
+        for index, slide in enumerate(plan.slides, start=1):
+            lines.append(f"- Slide {index}: {slide.title}")
+            for bullet in slide.bullets:
+                lines.append(f"  - {bullet}")
+    lines.append("")
+    return lines
+
+
+def render_post_package(post, *, title: str) -> list[str]:
+    return [
+        f"## {title}",
+        "### Hook",
+        post.hook,
+        "",
+        "### Core Idea",
+        *[f"- {bullet}" for bullet in post.core_idea],
+        "",
+        "### Draft Post",
+        post.draft_post,
+        "",
+        "### Visual Suggestion",
+        render_image_suggestion(
+            asdict(post.image_suggestion) if post.image_suggestion is not None else None,
+            fallback=post.visual_suggestion,
+        ),
+        "",
+        "### Why This Works",
+        post.why_this_works,
+        "",
+    ]
+
+
 def render_markdown(summary: RunSummary, generated_content: GeneratedContent, review_url: str | None = None) -> str:
     backup_lines = []
     for backup in generated_content.backups:
@@ -72,36 +124,26 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
             *[f"- Claim summary: {item}" for item in generated_content.topic_dossier.claim_summaries],
             "",
         ]
+    backup_text_lines = (
+        render_post_package(generated_content.backup_text_post, title="Backup Text Post")
+        if generated_content.backup_text_post is not None
+        else []
+    )
 
     sections = [
-        f"# {summary.day} - {summary.creator_post_type or summary.post_type}",
+        f"# {summary.day} - {summary.creator_post_type or summary.post_type} - {summary.content_format.upper()}",
         "",
         f"- Run ID: `{summary.run_id}`",
         f"- Status: `{summary.status}`",
         f"- Creator post type: {summary.creator_post_type or generated_content.primary.post_type}",
+        f"- Content format: {summary.content_format}",
         f"- Topic pillar: {summary.topic_pillar or 'unclassified'}",
         f"- Legacy weekday type: {summary.post_type}",
         f"- Selected topic: {summary.selected_topic}",
         review_line,
         "",
-        "## Hook",
-        generated_content.primary.hook,
-        "",
-        "## Core Idea",
-        *[f"- {bullet}" for bullet in generated_content.primary.core_idea],
-        "",
-        "## Draft Post",
-        generated_content.primary.draft_post,
-        "",
-        "## Visual Suggestion",
-        render_image_suggestion(
-            asdict(generated_content.primary.image_suggestion) if generated_content.primary.image_suggestion is not None else None,
-            fallback=generated_content.primary.visual_suggestion,
-        ),
-        "",
-        "## Why This Works",
-        generated_content.primary.why_this_works,
-        "",
+        *render_format_plan(generated_content),
+        *render_post_package(generated_content.primary, title="Primary Post"),
         "## Sources",
         *source_lines,
         "",
@@ -111,6 +153,7 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
         "",
         *credibility_lines,
         *originality_lines,
+        *backup_text_lines,
         *backup_lines,
     ]
     return "\n".join(sections).strip() + "\n"
@@ -176,28 +219,54 @@ def render_email_payload(
         [
             f"Run ID: {summary.run_id}",
             f"Day / Creator Type: {summary.day} / {summary.creator_post_type or generated_content.primary.post_type}",
+            f"Content format: {summary.content_format}",
             f"Legacy weekday type: {summary.post_type}",
             f"Topic pillar: {summary.topic_pillar or 'unclassified'}",
             f"Selected topic: {summary.selected_topic}",
             f"Review: {review_block}",
             "",
-            "HOOK",
-            generated_content.primary.hook,
-            "",
-            "CORE IDEA",
-            *[f"- {bullet}" for bullet in generated_content.primary.core_idea],
-            "",
-            "DRAFT POST",
-            generated_content.primary.draft_post,
-            "",
-            "VISUAL",
-            render_image_suggestion(
-                asdict(generated_content.primary.image_suggestion) if generated_content.primary.image_suggestion is not None else None,
-                fallback=generated_content.primary.visual_suggestion,
+            *(
+                [
+                    "FORMAT PLAN",
+                    f"Format: {generated_content.format_plan.format}",
+                    f"What to create: {generated_content.format_plan.what_to_create}",
+                    f"Why this format: {generated_content.format_plan.why_this_format}",
+                    *[f"Asset brief: {item}" for item in generated_content.format_plan.asset_brief],
+                    *(
+                        [f"Visual structure: {generated_content.format_plan.visual_structure}"]
+                        if generated_content.format_plan.visual_structure
+                        else []
+                    ),
+                    *(
+                        [f"Slide {index}: {slide.title} | {'; '.join(slide.bullets)}" for index, slide in enumerate(generated_content.format_plan.slides, start=1)]
+                        if generated_content.format_plan.slides
+                        else []
+                    ),
+                    f"Deadline: {generated_content.format_plan.deadline_hint}",
+                    f"Caption note: {generated_content.format_plan.caption_note}",
+                    "",
+                ]
+                if generated_content.format_plan is not None
+                else []
             ),
-            "",
-            "WHY THIS WORKS",
-            generated_content.primary.why_this_works,
+            "PRIMARY POST",
+            f"Hook: {generated_content.primary.hook}",
+            "Draft:",
+            generated_content.primary.draft_post,
+            f"Visual: {render_image_suggestion(asdict(generated_content.primary.image_suggestion) if generated_content.primary.image_suggestion is not None else None, fallback=generated_content.primary.visual_suggestion)}",
+            f"Why this works: {generated_content.primary.why_this_works}",
+            *(
+                [
+                    "",
+                    "BACKUP TEXT POST",
+                    f"Hook: {generated_content.backup_text_post.hook}",
+                    "Draft:",
+                    generated_content.backup_text_post.draft_post,
+                    f"Visual: {render_image_suggestion(asdict(generated_content.backup_text_post.image_suggestion) if generated_content.backup_text_post.image_suggestion is not None else None, fallback=generated_content.backup_text_post.visual_suggestion)}",
+                ]
+                if generated_content.backup_text_post is not None
+                else []
+            ),
             *credibility_block,
             *originality_block,
             "",
@@ -206,7 +275,7 @@ def render_email_payload(
         ]
     )
     return EmailPayload(
-        subject=f"[LinkedIn Content Agent] {summary.day} - {summary.selected_topic}",
+        subject=f"[LinkedIn Content Agent] {summary.day} - {summary.creator_post_type or generated_content.primary.post_type} - {summary.content_format.upper()}",
         body_text=body,
         recipient=recipient,
     )
