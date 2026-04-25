@@ -48,6 +48,16 @@ POST_TYPE_WEIGHTS: dict[str, dict[CreatorPostType, int]] = {
     "Sunday": {"insight": 25, "relatable": 20, "commentary": 15, "teaching": 10, "inspiration": 30},
 }
 
+DAY_ALLOWED_POST_TYPES: dict[str, tuple[CreatorPostType, ...]] = {
+    "Monday": ("insight", "teaching", "inspiration"),
+    "Tuesday": ("insight", "relatable", "teaching"),
+    "Wednesday": ("insight", "relatable", "commentary", "teaching"),
+    "Thursday": ("insight", "commentary", "teaching"),
+    "Friday": ("insight", "relatable", "commentary"),
+    "Saturday": ("insight", "relatable", "inspiration"),
+    "Sunday": ("insight", "relatable", "inspiration"),
+}
+
 FORMAT_WEIGHTS_BY_DAY: dict[str, dict[ContentFormat, int]] = {
     "Monday": {"text": 40, "photo": 30, "screenshot": 10, "carousel": 5, "infographic": 15},
     "Tuesday": {"text": 20, "photo": 5, "screenshot": 20, "carousel": 40, "infographic": 15},
@@ -338,6 +348,8 @@ def select_post_type(
 ) -> CreatorPostType:
     recent_types = recent_types or []
     weights = {ptype: float(weight) for ptype, weight in POST_TYPE_WEIGHTS.get(day_name, POST_TYPE_WEIGHTS["Monday"]).items()}
+    allowed = set(DAY_ALLOWED_POST_TYPES.get(day_name, CREATOR_POST_TYPES))
+    weights = {ptype: weight for ptype, weight in weights.items() if ptype in allowed}
 
     for index, recent in enumerate(recent_types[:4]):
         if recent not in weights:

@@ -146,6 +146,10 @@ class AppConfig:
     youtube_channel_ids: tuple[str, ...]
     smtp: SMTPConfig
     run_notes_dir: Path
+    selection_timeout_seconds: float = 45.0
+    generation_timeout_seconds: float = 120.0
+    audit_timeout_seconds: float = 45.0
+    originality_timeout_seconds: float = 45.0
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -169,6 +173,10 @@ class AppConfig:
             selection_reasoning=_get_str("LCA_OPENAI_SELECTION_REASONING", "low"),
             generation_reasoning=_get_str("LCA_OPENAI_GENERATION_REASONING", "medium"),
             audit_reasoning=_get_str("LCA_OPENAI_AUDIT_REASONING", "low"),
+            selection_timeout_seconds=float(_get_str("LCA_OPENAI_SELECTION_TIMEOUT_SECONDS", "45")),
+            generation_timeout_seconds=float(_get_str("LCA_OPENAI_GENERATION_TIMEOUT_SECONDS", "120")),
+            audit_timeout_seconds=float(_get_str("LCA_OPENAI_AUDIT_TIMEOUT_SECONDS", "45")),
+            originality_timeout_seconds=float(_get_str("LCA_OPENAI_ORIGINALITY_TIMEOUT_SECONDS", "45")),
             timezone=_get_str("LCA_TIMEZONE", "Africa/Lagos"),
             data_dir=data_dir,
             review_base_url=os.getenv("LCA_REVIEW_BASE_URL"),

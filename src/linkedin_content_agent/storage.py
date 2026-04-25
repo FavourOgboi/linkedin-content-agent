@@ -37,6 +37,8 @@ class StorageBackend(ABC):
         topic_pillar: str,
         content_format: str,
         comment_insight_used: bool = False,
+        audit_skipped: bool = False,
+        audit_skip_reason: str | None = None,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         raise NotImplementedError
@@ -90,6 +92,8 @@ class LocalHybridStorage(StorageBackend):
                     source_count INTEGER NOT NULL,
                     primary_artifact TEXT NOT NULL,
                     prompt_artifact TEXT NOT NULL,
+                    audit_skipped INTEGER NOT NULL DEFAULT 0,
+                    audit_skip_reason TEXT,
                     warnings_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS signals (
@@ -126,6 +130,8 @@ class LocalHybridStorage(StorageBackend):
             self._ensure_column(connection, "runs", "creator_post_type", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(connection, "runs", "topic_pillar", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(connection, "runs", "content_format", "TEXT NOT NULL DEFAULT 'text'")
+            self._ensure_column(connection, "runs", "audit_skipped", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(connection, "runs", "audit_skip_reason", "TEXT")
 
     def _ensure_column(self, connection: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
         columns = {
@@ -170,6 +176,8 @@ class LocalHybridStorage(StorageBackend):
         topic_pillar: str,
         content_format: str,
         comment_insight_used: bool = False,
+        audit_skipped: bool = False,
+        audit_skip_reason: str | None = None,
         review_url: str | None = None,
     ) -> tuple[RunSummary, RunArtifacts]:
         json_path = self.outputs_dir / f"{context.run_id}.json"
@@ -192,6 +200,8 @@ class LocalHybridStorage(StorageBackend):
             prompt_artifact=str(prompt_path),
             backup_titles=[backup.title for backup in generated_content.backups],
             comment_insight_used=comment_insight_used,
+            audit_skipped=audit_skipped,
+            audit_skip_reason=audit_skip_reason,
             warnings=warnings,
         )
 
@@ -218,8 +228,8 @@ class LocalHybridStorage(StorageBackend):
                 """
                 INSERT OR REPLACE INTO runs (
                     run_id, created_at, day, post_type, creator_post_type, topic_pillar, content_format, selected_topic, status,
-                    delivery_status, source_count, primary_artifact, prompt_artifact, warnings_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    delivery_status, source_count, primary_artifact, prompt_artifact, audit_skipped, audit_skip_reason, warnings_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     summary.run_id,
@@ -235,6 +245,8 @@ class LocalHybridStorage(StorageBackend):
                     summary.source_count,
                     summary.primary_artifact,
                     summary.prompt_artifact,
+                    1 if summary.audit_skipped else 0,
+                    summary.audit_skip_reason,
                     json.dumps(summary.warnings),
                 ),
             )

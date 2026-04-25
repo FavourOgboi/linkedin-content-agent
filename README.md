@@ -10,6 +10,7 @@ This project generates one creator-first LinkedIn post package plus two backup i
 - Builds a topic dossier for shortlisted angles, including supporting or conflicting sources
 - Assigns a truth profile so the draft knows whether it should sound like a builder, applied analyst, amplifier, exploratory voice, or light reflection
 - Uses the OpenAI Responses API with structured JSON outputs
+- Applies stage-specific OpenAI timeouts and a one-retry audit fallback so transient API hangs do not kill the run
 - Loads a tracked voice profile from `config/voice_profile.json`
 - Runs deterministic and model-based anti-generic checks
 - Runs separate truth-alignment and originality guards before anything ships
@@ -79,6 +80,15 @@ For email delivery, also provide:
 - `LCA_EMAIL_TO`
 
 If you only want to test generation without sending email, leave the SMTP fields blank and use `--skip-email`.
+
+Optional OpenAI reliability settings:
+
+- `LCA_OPENAI_SELECTION_TIMEOUT_SECONDS`
+- `LCA_OPENAI_GENERATION_TIMEOUT_SECONDS`
+- `LCA_OPENAI_AUDIT_TIMEOUT_SECONDS`
+- `LCA_OPENAI_ORIGINALITY_TIMEOUT_SECONDS`
+
+If the audit stage times out twice, the run now continues with a visible audit warning instead of dying silently.
 
 ## Common Local Commands
 

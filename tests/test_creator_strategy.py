@@ -29,7 +29,8 @@ from linkedin_content_agent.models import (
     SelfAudit,
     SourceReference,
 )
-from linkedin_content_agent.openai_client import build_system_prompt, normalize_originality_score
+from linkedin_content_agent.config import AppConfig, SMTPConfig
+from linkedin_content_agent.openai_client import OpenAIContentModel, build_system_prompt, normalize_originality_score
 from linkedin_content_agent.rendering import render_email_payload, render_markdown
 from linkedin_content_agent.storage import LocalHybridStorage
 from linkedin_content_agent.validation import check_post_length, check_readability
@@ -45,6 +46,12 @@ class CreatorStrategyTests(unittest.TestCase):
         for day_name in POST_TYPE_WEIGHTS:
             result = select_post_type(day_name, recent_types=[], seed_date=date(2026, 4, 25))
             self.assertIn(result, POST_TYPE_WEIGHTS[day_name])
+
+    def test_weekend_selection_excludes_commentary_lane(self) -> None:
+        saturday = select_post_type("Saturday", recent_types=["inspiration"], seed_date=date(2026, 4, 25))
+        sunday = select_post_type("Sunday", recent_types=["insight"], seed_date=date(2026, 4, 25))
+        self.assertIn(saturday, {"insight", "relatable", "inspiration"})
+        self.assertIn(sunday, {"insight", "relatable", "inspiration"})
 
     def test_same_date_produces_stable_content_format(self) -> None:
         result_one = select_content_format("Tuesday", recent_formats=["text"], seed_date=date(2026, 4, 25))
@@ -90,6 +97,59 @@ class CreatorStrategyTests(unittest.TestCase):
         self.assertEqual(normalize_originality_score(0.74), 7.4)
         self.assertEqual(normalize_originality_score(8.2), 8.2)
 
+    def test_structured_call_passes_timeout(self) -> None:
+        captured: dict[str, object] = {}
+
+        class FakeResponses:
+            def create(self, **kwargs):
+                captured.update(kwargs)
+
+                class FakeResponse:
+                    output_text = '{"selected_title":"x","selected_reason":"y","backup_titles":[],"caution_notes":[]}'
+
+                return FakeResponse()
+
+        class FakeClient:
+            def with_options(self, **kwargs):
+                captured.update(kwargs)
+                return self
+
+            responses = FakeResponses()
+
+        model = OpenAIContentModel(
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-5.1",
+                selection_reasoning="low",
+                generation_reasoning="medium",
+                audit_reasoning="low",
+                timezone="Africa/Lagos",
+                data_dir=ROOT / "tests" / "_tmp",
+                review_base_url=None,
+                signal_limit_per_source=10,
+                rss_feeds=(),
+                reddit_subreddits=(),
+                youtube_channel_ids=(),
+                smtp=SMTPConfig(host=None, port=465, username=None, password=None, use_ssl=True, sender=None, recipient=None),
+                run_notes_dir=ROOT / "tests" / "_tmp" / "run_notes",
+            )
+        )
+        model._client = FakeClient()
+
+        payload = model._structured_call(
+            schema_name="topic_selection",
+            schema={"type": "object", "properties": {}, "required": []},
+            system_prompt="system",
+            user_prompt="user",
+            reasoning_effort="low",
+            stage_name="selection",
+            timeout_seconds=12.5,
+        )
+
+        self.assertEqual(payload["selected_title"], "x")
+        self.assertEqual(captured["timeout"], 12.5)
+        self.assertEqual(captured["max_retries"], 0)
+
 
 class RenderingAndStorageTests(unittest.TestCase):
     def _workspace_run_dir(self) -> Path:
@@ -115,6 +175,8 @@ class RenderingAndStorageTests(unittest.TestCase):
             primary_artifact="output.json",
             prompt_artifact="prompt.json",
             backup_titles=["Backup one", "Backup two"],
+            audit_skipped=False,
+            audit_skip_reason=None,
             warnings=[],
         )
         content = GeneratedContent(
@@ -188,6 +250,8 @@ class RenderingAndStorageTests(unittest.TestCase):
             primary_artifact="output.json",
             prompt_artifact="prompt.json",
             backup_titles=["Backup one", "Backup two"],
+            audit_skipped=False,
+            audit_skip_reason=None,
             warnings=[],
         )
         content = GeneratedContent(
@@ -222,6 +286,48 @@ class RenderingAndStorageTests(unittest.TestCase):
         payload = render_email_payload(summary, content, "me@example.com")
         self.assertIn("[+comments]", payload.subject)
         self.assertIn("COMMENT INSIGHT", payload.body_text)
+
+    def test_render_email_payload_includes_audit_warning_when_skipped(self) -> None:
+        summary = RunSummary(
+            run_id="audit-skip-run",
+            created_at="2026-04-25T00:00:00+00:00",
+            day="Monday",
+            post_type="Build / Experiment",
+            creator_post_type="insight",
+            topic_pillar="ai_ml",
+            content_format="text",
+            selected_topic="Why workflow boundaries fail first",
+            status="awaiting_review",
+            source_count=1,
+            delivery_status="skipped",
+            primary_artifact="output.json",
+            prompt_artifact="prompt.json",
+            backup_titles=[],
+            audit_skipped=True,
+            audit_skip_reason="Audit skipped after 2 failed attempts; review manually before posting.",
+            warnings=[],
+        )
+        content = GeneratedContent(
+            primary=PostPackage(
+                day="Monday",
+                post_type="insight",
+                hook="The workflow boundary breaks before the model does.",
+                core_idea=["Boundary bugs hide upstream.", "Validation beats guessing.", "That tradeoff is worth it."],
+                draft_post="The workflow boundary breaks before the model does.",
+                visual_suggestion="Simple workflow diagram.",
+                why_this_works="It is direct and useful.",
+                source_refs=[SourceReference(source="rss:test", title="Source", url="https://example.com")],
+                self_audit=SelfAudit(passed_checks=["Clear argument."], critic_notes=[]),
+            ),
+            backups=[],
+            selected_topic_reason="Strong creator-fit topic.",
+            audit_skipped=True,
+            audit_skip_reason="Audit skipped after 2 failed attempts; review manually before posting.",
+        )
+
+        payload = render_email_payload(summary, content, "me@example.com")
+        self.assertIn("AUDIT WARNING", payload.body_text)
+        self.assertIn("Audit skipped after 2 failed attempts", payload.body_text)
 
     def test_storage_load_recent_runs_returns_newest_first(self) -> None:
         temp_dir = self._workspace_run_dir()

@@ -16,6 +16,7 @@ from linkedin_content_agent.content_strategy import (
 from linkedin_content_agent.day_contracts import DayContract
 from linkedin_content_agent.json_schemas import AUDIT_RESULT_SCHEMA, GENERATION_PAYLOAD_SCHEMA, ORIGINALITY_AUDIT_SCHEMA, TOPIC_SELECTION_SCHEMA
 from linkedin_content_agent.models import (
+    AuthorityMode,
     BackupIdea,
     CarouselSlide,
     FormatPlan,
@@ -28,6 +29,8 @@ from linkedin_content_agent.models import (
     SourceReference,
     TopicContext,
     TopicSelection,
+    SourceOwnership,
+    EvidenceStrengthLabel,
 )
 
 
@@ -98,6 +101,116 @@ def _load_voice_profile() -> dict[str, Any]:
 
 
 _VOICE_PROFILE = _load_voice_profile()
+
+
+def _compact_dossier(topic_context: TopicContext) -> dict[str, Any]:
+    dossier = topic_context.dossier
+    return {
+        "topic_title": dossier.topic_title,
+        "source_count": dossier.source_count,
+        "consensus_summary": dossier.consensus_summary,
+        "claim_summaries": dossier.claim_summaries[:3],
+        "disagreement_notes": dossier.disagreement_notes[:2],
+        "stronger_source_present": dossier.stronger_source_present,
+        "weak_signal_echo": dossier.weak_signal_echo,
+        "matched_run_note": dossier.matched_run_note,
+        "sources": [
+            {
+                "source": source.reference.source,
+                "title": source.reference.title,
+                "source_quality": source.source_quality,
+                "claim": source.claim,
+                "confidence": source.confidence,
+            }
+            for source in dossier.sources[:3]
+        ],
+    }
+
+
+def _compact_truth_profile(topic_context: TopicContext) -> dict[str, Any]:
+    truth = topic_context.truth_profile
+    return {
+        "authority_mode": truth.authority_mode,
+        "source_ownership": truth.source_ownership,
+        "evidence_strength": truth.evidence_strength,
+        "risk_level": truth.risk_level,
+        "conflict_level": truth.conflict_level,
+        "allowed_claim_posture": truth.allowed_claim_posture,
+        "provenance_rule": truth.provenance_rule,
+        "required_copy_moves": truth.required_copy_moves[:3],
+        "forbidden_moves": truth.forbidden_moves[:3],
+        "allows_first_person_experiment": truth.allows_first_person_experiment,
+        "allows_exact_metrics": truth.allows_exact_metrics,
+    }
+
+
+def _compact_topic_context(topic_context: TopicContext) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "title": topic_context.candidate.title,
+        "score_total": topic_context.candidate.score_total,
+        "creator_post_type": topic_context.creator_post_type,
+        "topic_pillar": topic_context.topic_pillar,
+        "content_format": topic_context.content_format,
+        "day_tone_hint": topic_context.day_tone_hint,
+        "dossier": _compact_dossier(topic_context),
+        "truth_profile": _compact_truth_profile(topic_context),
+    }
+    if topic_context.comment_insight is not None and topic_context.comment_usage_mode != "ignore":
+        payload["comment_signal"] = {
+            "source": topic_context.comment_insight.source,
+            "signal_strength": topic_context.comment_insight.signal_strength,
+            "top_sentiment": topic_context.comment_insight.top_sentiment,
+            "usage_mode": topic_context.comment_usage_mode,
+            "key_debates": topic_context.comment_insight.key_debates[:2],
+            "strongest_pushback": topic_context.comment_insight.strongest_pushback,
+            "common_question": topic_context.comment_insight.common_question,
+        }
+    return payload
+
+
+def _compact_reference_contexts(reference_contexts: list[TopicContext]) -> list[dict[str, Any]]:
+    return [
+        {
+            "title": context.candidate.title,
+            "topic_pillar": context.topic_pillar,
+            "creator_post_type": context.creator_post_type,
+            "consensus_summary": context.dossier.consensus_summary,
+            "allowed_claim_posture": context.truth_profile.allowed_claim_posture,
+        }
+        for context in reference_contexts[:2]
+    ]
+
+
+def _compact_generated_content(generated_content: GeneratedContent) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "primary": {
+            "hook": generated_content.primary.hook,
+            "draft_post": generated_content.primary.draft_post,
+            "core_idea": generated_content.primary.core_idea[:5],
+            "length_mode": generated_content.primary.length_mode,
+        },
+        "backups": [
+            {
+                "title": backup.title,
+                "hook": backup.hook,
+                "angle": backup.angle,
+            }
+            for backup in generated_content.backups[:2]
+        ],
+    }
+    if generated_content.backup_text_post is not None:
+        payload["backup_text_post"] = {
+            "hook": generated_content.backup_text_post.hook,
+            "draft_post": generated_content.backup_text_post.draft_post,
+        }
+    if generated_content.format_plan is not None:
+        payload["format_plan"] = {
+            "format": generated_content.format_plan.format,
+            "what_to_create": generated_content.format_plan.what_to_create,
+            "why_this_format": generated_content.format_plan.why_this_format,
+            "asset_brief": generated_content.format_plan.asset_brief[:3],
+        }
+    return payload
 
 
 def build_system_prompt(
@@ -232,10 +345,7 @@ def _comment_prompt_block(topic_context: TopicContext) -> str:
     def audit_content(
         self,
         *,
-        contract: DayContract,
-        topic_context: TopicContext,
-        generated_content: GeneratedContent,
-        deterministic_issues: list[str],
+        audit_payload: dict[str, Any],
     ) -> ModelAuditResult:
         raise NotImplementedError
 
@@ -273,8 +383,10 @@ class OpenAIContentModel:
         system_prompt: str,
         user_prompt: str,
         reasoning_effort: str,
+        stage_name: str,
+        timeout_seconds: float,
     ) -> dict[str, Any]:
-        client = self._get_client()
+        client = self._get_client().with_options(timeout=timeout_seconds, max_retries=0)
         response = client.responses.create(
             model=self.config.openai_model,
             reasoning={"effort": reasoning_effort},
@@ -304,7 +416,7 @@ class OpenAIContentModel:
                 if output_text:
                     break
         if not output_text:
-            raise RuntimeError("OpenAI response did not contain output text.")
+            raise RuntimeError(f"OpenAI {stage_name} response did not contain output text.")
         return json.loads(output_text)
 
     def choose_topic(self, contract: DayContract, topic_contexts: list[TopicContext], topic_override: str | None = None) -> TopicSelection:
@@ -331,7 +443,7 @@ class OpenAIContentModel:
                 "Prefer topics with a sharp angle, defensible evidence, useful disagreement, and room for a real take.",
                 "Do not prefer a topic just because the headline sounds dramatic or benchmark-heavy.",
                 "",
-                json.dumps([asdict(context) for context in topic_contexts[:8]], indent=2),
+                json.dumps([_compact_topic_context(context) for context in topic_contexts[:6]], indent=2),
             ]
         )
         try:
@@ -345,6 +457,8 @@ class OpenAIContentModel:
                 ),
                 user_prompt=prompt,
                 reasoning_effort=self.config.selection_reasoning,
+                stage_name="selection",
+                timeout_seconds=self.config.selection_timeout_seconds,
             )
             return TopicSelection(**payload)
         except Exception:
@@ -385,13 +499,13 @@ class OpenAIContentModel:
             f"Topic pillar: {topic_context.topic_pillar or 'unclassified'}",
             "",
             "Selected topic dossier:",
-            json.dumps(asdict(topic_context.dossier), indent=2),
+            json.dumps(_compact_dossier(topic_context), indent=2),
             "",
             "Truth profile:",
-            json.dumps(asdict(topic_context.truth_profile), indent=2),
+            json.dumps(_compact_truth_profile(topic_context), indent=2),
             "",
             "Reference topic contexts:",
-            json.dumps([asdict(context) for context in reference_contexts[:5]], indent=2),
+            json.dumps(_compact_reference_contexts(reference_contexts), indent=2),
             "",
             "Return one primary post package and exactly two backup ideas.",
             f"Return `content_format` as '{topic_context.content_format}'.",
@@ -434,6 +548,8 @@ class OpenAIContentModel:
             system_prompt=system_prompt,
             user_prompt="\n".join(prompt_parts),
             reasoning_effort=self.config.generation_reasoning,
+            stage_name="generation",
+            timeout_seconds=self.config.generation_timeout_seconds,
         )
         if payload["content_format"] != topic_context.content_format:
             raise RuntimeError(
@@ -484,10 +600,10 @@ class OpenAIContentModel:
                 f"Selection reason: {selection.selected_reason}",
                 "",
                 "Topic context and source evidence:",
-                json.dumps(asdict(topic_context), indent=2),
+                json.dumps(_compact_topic_context(topic_context), indent=2),
                 "",
                 "Generated draft:",
-                json.dumps(asdict(generated_content), indent=2),
+                json.dumps(_compact_generated_content(generated_content), indent=2),
             ]
         )
         payload = self._structured_call(
@@ -501,6 +617,8 @@ class OpenAIContentModel:
             ),
             user_prompt=prompt,
             reasoning_effort=self.config.audit_reasoning,
+            stage_name="originality",
+            timeout_seconds=self.config.originality_timeout_seconds,
         )
         payload["originality_score"] = normalize_originality_score(float(payload["originality_score"]))
         return OriginalityAudit(**payload)
@@ -508,39 +626,38 @@ class OpenAIContentModel:
     def audit_content(
         self,
         *,
-        contract: DayContract,
-        topic_context: TopicContext,
-        generated_content: GeneratedContent,
-        deterministic_issues: list[str],
+        audit_payload: dict[str, Any],
     ) -> ModelAuditResult:
         prompt = "\n".join(
             [
-                f"Audit this {contract.day} / {topic_context.creator_post_type} content package.",
+                f"Audit this {audit_payload['day_name']} / {audit_payload['creator_post_type']} content package.",
                 "Fail it if it sounds generic, beginner-level, or AI-obvious.",
-                "Fail it if it does not genuinely satisfy the creator post type and truth profile.",
+                "Fail it if it does not genuinely satisfy the creator post type and truth posture.",
                 "Fail it if it violates the assigned authority mode, provenance rule, or claim posture.",
                 "",
-                "Topic context:",
-                json.dumps(asdict(topic_context), indent=2),
-                "",
-                "Deterministic issues already found:",
-                json.dumps(deterministic_issues, indent=2),
-                "",
-                "Generated content:",
-                json.dumps(asdict(generated_content), indent=2),
+                "Compact audit payload:",
+                json.dumps(audit_payload, indent=2),
             ]
         )
         payload = self._structured_call(
             schema_name="audit_result",
             schema=AUDIT_RESULT_SCHEMA,
             system_prompt=build_system_prompt(
-                topic_context.creator_post_type,
-                contract.day,
-                asdict(topic_context.truth_profile),
-                content_format=topic_context.content_format,
+                audit_payload["creator_post_type"],
+                audit_payload["day_name"],
+                {
+                    "authority_mode": audit_payload["truth_posture"]["authority_mode"],
+                    "source_ownership": audit_payload["truth_posture"]["source_ownership"],
+                    "evidence_strength": audit_payload["truth_posture"]["evidence_strength"],
+                    "allowed_claim_posture": audit_payload["truth_posture"]["allowed_claim_posture"],
+                    "provenance_rule": audit_payload["truth_posture"]["provenance_rule"],
+                },
+                content_format=audit_payload["content_format"],
             ),
             user_prompt=prompt,
             reasoning_effort=self.config.audit_reasoning,
+            stage_name="audit",
+            timeout_seconds=self.config.audit_timeout_seconds,
         )
         return ModelAuditResult(**payload)
 

@@ -190,7 +190,8 @@ class PassingModel:
             content_format=topic_context.content_format,
         )
 
-    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+    def audit_content(self, *, audit_payload):
+        deterministic_issues = audit_payload["deterministic_issues"]
         return ModelAuditResult(passed=not deterministic_issues, reasons=[], revision_instructions="Tighten the systems framing.")
 
     def assess_originality(self, *, contract, selection, topic_context, generated_content):
@@ -479,7 +480,7 @@ class SaturdayPositiveReasonModel(PassingModel):
         ]
         return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Saturday reflection.")
 
-    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+    def audit_content(self, *, audit_payload):
         return ModelAuditResult(
             passed=True,
             reasons=[
@@ -549,7 +550,7 @@ class DeterministicRetryModel(PassingModel):
         ]
         return GeneratedContent(primary=primary, backups=backups, selected_topic_reason="Saturday reflection.")
 
-    def audit_content(self, *, contract, topic_context, generated_content, deterministic_issues):
+    def audit_content(self, *, audit_payload):
         return ModelAuditResult(
             passed=True,
             reasons=["The provenance is otherwise sound."],
@@ -648,6 +649,35 @@ class FailingCommentHarvester:
         raise RuntimeError("comment source failed")
 
 
+class AuditFlakyModel(PassingModel):
+    def __init__(self):
+        self.audit_calls = 0
+
+    def audit_content(self, *, audit_payload):
+        self.audit_calls += 1
+        if self.audit_calls == 1:
+            raise TimeoutError("simulated timeout")
+        return ModelAuditResult(passed=True, reasons=["Recovered on retry."], revision_instructions="")
+
+
+class AuditAlwaysFailModel(PassingModel):
+    def __init__(self):
+        self.audit_calls = 0
+
+    def audit_content(self, *, audit_payload):
+        self.audit_calls += 1
+        raise TimeoutError("simulated persistent timeout")
+
+
+class GenerationAlwaysFailModel(PassingModel):
+    def __init__(self):
+        self.generate_calls = 0
+
+    def generate_content(self, *, contract, selection, topic_context, reference_contexts, creator_context, revision_feedback=None):
+        self.generate_calls += 1
+        raise TimeoutError("simulated generation timeout")
+
+
 class PipelineTests(unittest.TestCase):
     def _workspace_run_dir(self) -> Path:
         base = ROOT / "tests" / "_tmp"
@@ -680,6 +710,10 @@ class PipelineTests(unittest.TestCase):
                 recipient="to@example.com",
             ),
             run_notes_dir=data_dir / "run_notes",
+            selection_timeout_seconds=45.0,
+            generation_timeout_seconds=120.0,
+            audit_timeout_seconds=45.0,
+            originality_timeout_seconds=45.0,
         )
 
     def _signal(
@@ -1005,6 +1039,118 @@ class PipelineTests(unittest.TestCase):
             )
 
             self.assertEqual(result.generated_content.primary.length_mode, "extended")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_retries_audit_once_then_succeeds(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = AuditFlakyModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            from unittest.mock import patch
+            with patch("linkedin_content_agent.pipeline.time.sleep") as mocked_sleep:
+                result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
+
+            self.assertEqual(model.audit_calls, 2)
+            mocked_sleep.assert_called_once_with(5)
+            self.assertFalse(result.summary.audit_skipped)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_continues_when_audit_fails_twice(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = AuditAlwaysFailModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            from unittest.mock import patch
+            with patch("linkedin_content_agent.pipeline.time.sleep"):
+                result = agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
+
+            self.assertEqual(model.audit_calls, 2)
+            self.assertTrue(result.summary.audit_skipped)
+            self.assertIn("Audit skipped after 2 failed attempts", result.summary.audit_skip_reason or "")
+            payload = load_json(result.artifacts.json_path, {})
+            self.assertTrue(payload["summary"]["audit_skipped"])
+            self.assertIn("Audit skipped after 2 failed attempts", payload["summary"]["audit_skip_reason"])
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_pipeline_fails_fast_after_two_generation_api_errors(self) -> None:
+        temp_dir = self._workspace_run_dir()
+        try:
+            data_dir = temp_dir / "data"
+            config = self._config(data_dir)
+            storage = LocalHybridStorage(data_dir)
+            model = GenerationAlwaysFailModel()
+            agent = ContentAgent(
+                config=config,
+                storage=storage,
+                model=model,
+                email_sender=FakeEmailSender(),
+                source_adapters=[
+                    FakeSource(
+                        [
+                            self._signal(title="Unexpected tradeoff in agent evaluation pipelines", url="https://example.com/1"),
+                            self._signal(
+                                title="Why protocol adherence matters in agent evaluation pipelines",
+                                source="rss:blog",
+                                url="https://github.com/example/agent-eval",
+                                excerpt="A technical writeup explains why protocol adherence fails at the tool boundary.",
+                            ),
+                        ]
+                    )
+                ],
+            )
+
+            with self.assertRaises(RuntimeError) as cm:
+                agent.run(RunOptions(day_override="Monday", format_override="text", send_email=False))
+
+            self.assertIn("Content generation failed after 2 API/runtime attempts", str(cm.exception))
+            self.assertEqual(model.generate_calls, 4)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

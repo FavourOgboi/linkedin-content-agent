@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import UTC, datetime
+import logging
+import time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from linkedin_content_agent.config import AppConfig
 from linkedin_content_agent.content_strategy import get_comment_usage, get_day_tone_hint, passes_topic_filter, select_content_format, select_post_type
 from linkedin_content_agent.day_contracts import resolve_day_contract, resolve_topic_choice
 from linkedin_content_agent.emailer import SMTPEmailSender
-from linkedin_content_agent.models import DeliveryResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicContext, TopicSelection
+from linkedin_content_agent.models import DeliveryResult, ModelAuditResult, OriginalityAudit, ReviewRecord, RunOptions, TopicCandidate, TopicContext, TopicSelection
 from linkedin_content_agent.models import AgentRunResult, RunContext
 from linkedin_content_agent.openai_client import ContentModel, OpenAIContentModel
 from linkedin_content_agent.rendering import render_email_payload
@@ -44,6 +46,8 @@ CREATOR_CRITIC_PROMPTS = {
         "This draft failed validation. Make it more specific and grounded. Avoid motivational-poster language."
     ),
 }
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _load_recent_post_types(storage: StorageBackend, n: int = 4) -> list[str]:
@@ -210,6 +214,8 @@ class ContentAgent:
             topic_pillar=accepted_topic_context.topic_pillar,
             content_format=content_format,
             comment_insight_used=generated_content.comment_insight is not None,
+            audit_skipped=getattr(generated_content, "audit_skipped", False),
+            audit_skip_reason=getattr(generated_content, "audit_skip_reason", None),
             review_url=review_url,
         )
         return AgentRunResult(
@@ -540,24 +546,53 @@ class ContentAgent:
         revision_feedback: str | None = None,
     ):
         last_issues: list[str] = []
+        audit_skipped = False
+        audit_skip_reason: str | None = None
+        generation_api_failures = 0
         for _ in range(3):
-            generated_content = self.model.generate_content(
+            try:
+                generated_content = self.model.generate_content(
+                    contract=contract,
+                    selection=selection,
+                    topic_context=topic_context,
+                    reference_contexts=reference_contexts,
+                    creator_context=self.config.creator_context,
+                    revision_feedback=revision_feedback,
+                )
+            except Exception as exc:
+                generation_api_failures += 1
+                last_issues = [f"Generation attempt failed: {exc}"]
+                LOGGER.warning("Generation attempt failed for topic '%s': %s", selection.selected_title, exc)
+                if generation_api_failures >= 2:
+                    raise RuntimeError(
+                        "Content generation failed after 2 API/runtime attempts: "
+                        + "; ".join(last_issues)
+                    ) from exc
+                revision_feedback = "\n".join(
+                    part
+                    for part in [
+                        revision_feedback,
+                        f"The previous generation attempt failed due to an API/runtime error: {exc}",
+                        "Retry with the same creative direction, but respond faster and more directly.",
+                    ]
+                    if part
+                )
+                continue
+            deterministic_issues = validate_generated_content(generated_content, contract, topic_context)
+            audit, audit_skipped, audit_skip_reason = self._run_audit_with_fallback(
                 contract=contract,
                 selection=selection,
-                topic_context=topic_context,
-                reference_contexts=reference_contexts,
-                creator_context=self.config.creator_context,
-                revision_feedback=revision_feedback,
-            )
-            deterministic_issues = validate_generated_content(generated_content, contract, topic_context)
-            audit = self.model.audit_content(
-                contract=contract,
                 topic_context=topic_context,
                 generated_content=generated_content,
                 deterministic_issues=deterministic_issues,
             )
             if not deterministic_issues and audit.passed:
                 generated_content.primary.self_audit.critic_notes.extend(audit.reasons)
+                if audit_skipped:
+                    generated_content.primary.self_audit.critic_notes.append(audit_skip_reason or "Audit skipped.")
+                    generated_content.primary.self_audit.passed_checks.append("Manual review required because the audit stage was skipped.")
+                generated_content.audit_skipped = audit_skipped
+                generated_content.audit_skip_reason = audit_skip_reason
                 return generated_content
 
             audit_issues = [] if audit.passed else audit.reasons
@@ -572,6 +607,78 @@ class ContentAgent:
             revision_feedback = "\n".join(part for part in feedback_parts if part)
 
         raise RuntimeError("Content generation failed critic review: " + "; ".join(last_issues))
+
+    def _build_audit_payload(
+        self,
+        *,
+        contract: object,
+        selection: TopicSelection,
+        topic_context: TopicContext,
+        generated_content,
+        deterministic_issues: list[str],
+    ) -> dict[str, object]:
+        def _public_copy(post) -> dict[str, str] | None:
+            if post is None:
+                return None
+            return {
+                "hook": post.hook,
+                "draft_post": post.draft_post,
+            }
+
+        return {
+            "day_name": contract.day,
+            "selected_topic": selection.selected_title,
+            "creator_post_type": topic_context.creator_post_type,
+            "content_format": topic_context.content_format,
+            "primary_public_copy": _public_copy(generated_content.primary),
+            "backup_public_copy": _public_copy(generated_content.backup_text_post),
+            "truth_posture": {
+                "authority_mode": topic_context.truth_profile.authority_mode,
+                "source_ownership": topic_context.truth_profile.source_ownership,
+                "evidence_strength": topic_context.truth_profile.evidence_strength,
+                "allowed_claim_posture": topic_context.truth_profile.allowed_claim_posture,
+                "provenance_rule": topic_context.truth_profile.provenance_rule,
+            },
+            "comment_signal_used": topic_context.comment_insight is not None and topic_context.comment_usage_mode != "ignore",
+            "deterministic_issues": list(deterministic_issues),
+        }
+
+    def _run_audit_with_fallback(
+        self,
+        *,
+        contract: object,
+        selection: TopicSelection,
+        topic_context: TopicContext,
+        generated_content,
+        deterministic_issues: list[str],
+    ):
+        audit_payload = self._build_audit_payload(
+            contract=contract,
+            selection=selection,
+            topic_context=topic_context,
+            generated_content=generated_content,
+            deterministic_issues=deterministic_issues,
+        )
+        last_error: Exception | None = None
+        for attempt in range(1, 3):
+            try:
+                return self.model.audit_content(audit_payload=audit_payload), False, None
+            except Exception as exc:
+                last_error = exc
+                LOGGER.warning("Audit attempt %s/2 failed for run topic '%s': %s", attempt, selection.selected_title, exc)
+                if attempt == 1:
+                    time.sleep(5)
+
+        reason = (
+            "Audit skipped after 2 failed attempts; review manually before posting."
+            if last_error is None
+            else f"Audit skipped after 2 failed attempts; review manually before posting. Last error: {last_error}"
+        )
+        return ModelAuditResult(
+            passed=True,
+            reasons=[reason],
+            revision_instructions="Audit was unavailable; use manual review instead of trusting this pass as audited.",
+        ), True, reason
 
     def _deliver(
         self,
@@ -598,6 +705,8 @@ class ContentAgent:
                 "content_format": context.content_format,
                 "topic_pillar": topic_pillar,
                 "selected_topic": selected_topic,
+                "audit_skipped": getattr(generated_content, "audit_skipped", False),
+                "audit_skip_reason": getattr(generated_content, "audit_skip_reason", None),
             },
         )
         payload = render_email_payload(summary_stub, generated_content, self.config.smtp.recipient, review_url=review_url)

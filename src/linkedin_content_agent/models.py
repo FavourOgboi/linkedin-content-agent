@@ -222,6 +222,8 @@ class GeneratedContent:
     backup_text_post: PostPackage | None = None
     comment_insight: CommentInsight | None = None
     comment_usage_mode: CommentUsageMode = "ignore"
+    audit_skipped: bool = False
+    audit_skip_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -257,6 +259,8 @@ class RunSummary:
     prompt_artifact: str
     backup_titles: list[str]
     comment_insight_used: bool = False
+    audit_skipped: bool = False
+    audit_skip_reason: str | None = None
     warnings: list[str] = field(default_factory=list)
 
 

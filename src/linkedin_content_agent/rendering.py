@@ -164,6 +164,16 @@ def render_markdown(summary: RunSummary, generated_content: GeneratedContent, re
     sections = [
         f"# {summary.day} - {summary.creator_post_type or summary.post_type} - {summary.content_format.upper()}",
         "",
+        *(
+            [
+                "## Audit Warning",
+                f"- Audit skipped: {summary.audit_skipped}",
+                f"- Reason: {summary.audit_skip_reason or 'Audit was unavailable.'}",
+                "",
+            ]
+            if summary.audit_skipped
+            else []
+        ),
         f"- Run ID: `{summary.run_id}`",
         f"- Status: `{summary.status}`",
         f"- Creator post type: {summary.creator_post_type or generated_content.primary.post_type}",
@@ -249,6 +259,15 @@ def render_email_payload(
 
     body = "\n".join(
         [
+            *(
+                [
+                    "AUDIT WARNING",
+                    summary.audit_skip_reason or "Audit was skipped. Review manually before posting.",
+                    "",
+                ]
+                if summary.audit_skipped
+                else []
+            ),
             f"Run ID: {summary.run_id}",
             f"Day / Creator Type: {summary.day} / {summary.creator_post_type or generated_content.primary.post_type}",
             f"Content format: {summary.content_format}",
